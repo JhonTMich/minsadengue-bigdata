@@ -1,1 +1,11 @@
-data/
+data/*
+!data/muestra/
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+spark-warehouse/
+metastore_db/
+derby.log
+.DS_Store
+Thumbs.db
+.env
