@@ -9,3 +9,5 @@ derby.log
 .DS_Store
 Thumbs.db
 .env
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
