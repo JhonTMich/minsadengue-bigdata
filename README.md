@@ -162,9 +162,9 @@ usa `data/muestra/panel_dengue_clima.csv`.
 
 | Modelo | AUC-ROC | AUC-PR | Precisión | Recall |
 |---|---|---|---|---|
-| Persistencia | | | | |
-| Logística: solo casos | | | | |
-| Logística: casos + clima (línea base) |  | | | |
+| Persistencia | 0.886 | 0.942 | 0.968 | 0.828 |
+| Logística: solo casos | 0.928 | 0.964 | 0.796 | 0.955 |
+| Logística: casos + clima (línea base) | 0.922 | 0.962 | 0.782 | 0.958 |
 
 Fuente: `data/metricas/modelo_base.csv`.
 
@@ -178,5 +178,3 @@ Fuente: `data/metricas/modelo_base.csv`.
 ## Uso de inteligencia artificial generativa
 
 Declarado en el Anexo A del informe del proyecto.
-
-## Licencia
