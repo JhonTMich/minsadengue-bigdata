@@ -113,9 +113,9 @@ Ocho particiones sin caché produjo una mediana 11.4 % menor que 200 sin caché.
 
 ## Escalabilidad: alcance y límites
 
-`EJECUTAR_ESCALABILIDAD=False` y `FACTORES=[1]` son los valores iniciales. El interruptor ahora controla realmente el bucle. Ampliar manualmente a ×2, ×5 y ×10 solo si hay recursos. No es obligatorio alcanzar ×100; documentar el límite observado. El ordenamiento aleatorio está desactivado porque añade carga de shuffle y no elimina los duplicados.
+`EJECUTAR_ESCALABILIDAD=False` y `FACTORES=[1]` son los valores iniciales. El interruptor ahora controla realmente el bucle. La sección 3.7 de la guía exige réplicas ×10 y ×100, ejecutar el pipeline completo en cada escala y reportar tiempos y consumo de recursos. Ambas escalas siguen pendientes con ese alcance. Las escalas ×2 y ×5 son diagnósticos intermedios, no sustituyen el requisito. Si una ejecución falla o se interrumpe por recursos, registrar factor, etapa, tiempo transcurrido, recursos y causa; no declararla completada ni dar el requisito por satisfecho sin validación del docente. El ordenamiento aleatorio está desactivado porque añade carga de shuffle y no elimina los duplicados.
 
-La validación ×1 procesó 1 029 421 registros: **5.5 s** para transformación Silver y construcción/conteo Gold, Bronze físico 4.9 MB, Silver 2.9 MB, shuffle reportado 0.1 MB, spill de memoria/disco 0 y pico de ejecución por etapa 271.6 MB. Este pico no representa RAM total del equipo o proceso. Una métrica ausente se escribe nula, no cero.
+La medición actual cubre transformación Silver y construcción/conteo Gold; no mide ingesta completa ni escritura Gold en la prueba replicada. Debe ampliarse antes de usarla como evidencia de cumplimiento de la sección 3.7. La validación ×1 procesó 1 029 421 registros: **5.5 s** para transformación Silver y construcción/conteo Gold, Bronze físico 4.9 MB, Silver 2.9 MB, shuffle reportado 0.1 MB, spill de memoria/disco 0 y pico de ejecución por etapa 271.6 MB. Este pico no representa RAM total del equipo o proceso. Una métrica ausente se escribe nula, no cero.
 
 Generar y contar las réplicas ocurre antes de medir; la entrada está recién escrita/leída y la caché del SO favorece el I/O. Copias idénticas se comprimen mucho. Por tanto, los tiempos antiguos de ×100 no acreditan escalabilidad multinodo ni necesidad de clúster. El conjunto original cabe en una máquina; la necesidad de procesamiento distribuido y el punto de quiebre todavía no están demostrados.
 
@@ -206,7 +206,7 @@ No se demuestra aún una alerta temprana suficientemente útil ni un aporte clim
 
 Los experimentos posteriores son exploratorios porque 2021–2024 ya se inspeccionó. Nuevas variables, modelos y umbrales deben elegirse en validación temporal, no optimizando ese test. Hará falta una evaluación independiente para confirmar generalización. Cambiar la definición de brote para mejorar la métrica invalidaría la comparación directa y requiere justificación separada.
 
-Pendientes: estabilidad regional y confirmación independiente; umbral elegido con validación y presupuesto explícito de falsas alarmas; evidencia de escalas adicionales y punto de quiebre; costos y sostenibilidad; actualización del informe; respaldo de aprobación del equipo y planificación real frente a ejecutada.
+Pendientes: estabilidad regional y confirmación independiente; umbral elegido con validación y presupuesto explícito de falsas alarmas; ejecución completa ×10 y ×100 con recursos, límites de ejecución y punto de quiebre; costos y sostenibilidad; actualización del informe; respaldo de aprobación del equipo y planificación real frente a ejecutada.
 
 La declaración de IA debe registrar herramientas, secciones y verificaciones efectivamente realizadas, incluidas las correcciones asistidas por Codex de esta rama. El Anexo A y las firmas requieren revisión de los integrantes; no se han completado ni firmado en su nombre. No existe presupuesto monetario productivo medido: se utiliza infraestructura local y fuentes públicas, pero no se cuantificaron hardware, electricidad ni operación.
 
