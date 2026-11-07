@@ -1,190 +1,90 @@
-# Universidad Privada Antenor Orrego, periodo 2026-20.
-## Ingeniería de Sistemas e Inteligencia Artificial
+# Predicción de brotes de dengue en Perú con datos epidemiológicos y climáticos
 
-## Modelo predictivo de brotes de dengue por variables climáticas en el Perú
+Proyecto académico de Big Data y Analítica de Datos, Ingeniería de Sistemas e Inteligencia Artificial, Universidad Privada Antenor Orrego, periodo 2026-20. Grupo 13. Docente: Ing. Armando Javier Caballero Alvarado.
 
-Proyecto del curso **Big Data y Analítica de Datos**
+**Resultado actual:** el pipeline funciona y la logística obtiene AUC-ROC 0.922 con casos y clima, pero el clima no mejora al modelo de casos solos (0.928). Al evaluar únicamente semanas sin brote vigente, el AUC baja a 0.689 con clima frente a 0.710 con casos solos. El objetivo predictivo de anticipación todavía requiere mejoras; no se presenta el AUC global como prueba suficiente de alerta temprana.
 
-Pipeline sobre Apache Spark que integra el registro nacional de vigilancia epidemiológica de dengue
-del MINSA (CDC Perú, 2000–2024) con series climáticas diarias de NASA POWER, para estimar por
-departamento y semana epidemiológica la probabilidad de que ocurra un brote en las 4 semanas siguientes.
+## Equipo y alcance
 
-> **Proyecto académico:** No es un sistema oficial del MINSA y sus resultados no deben usarse
-> para decisiones sanitarias sin validación institucional.
-
-## Equipo
-
-| Integrante | Rol |
+| Integrante | Responsabilidad |
 |---|---|
 | Arenas Arriaga, Johan Michael | Coordinación, análisis y modelado |
 | Campos Acevedo, Gianfranco | Ingeniería de datos, calidad y documentación |
 
-Docente: Ing. Armando Javier Caballero Alvarado
+Ruta A: ejecución on-premise local con Docker y Spark. Se procesa el registro nacional 2000–2024 y se modelan 19 departamentos con al menos 1 000 registros en el periodo, que concentran aproximadamente el 99.93 % de casos. El informe declara un acuerdo de alcance con el docente en Semana 2; su respaldo documental sigue pendiente de incorporar. Los roles dobles y la cantidad de commits no sustituyen evidencia de planificación, contribuciones y decisiones.
 
-## Problema
+Es un prototipo académico, no un servicio oficial del MINSA ni una herramienta validada para decisiones sanitarias.
 
-El MINSA detecta las epidemias de dengue cuando los casos ya superan el canal endémico, es decir,
-con **0 semanas de anticipación**. Este proyecto busca anticipar esa alerta para priorizar brigadas
-y recursos hacia los departamentos con mayor riesgo.
+## Problema y objetivo
 
-## Datos
+Estimar por departamento y semana epidemiológica si habrá al menos una semana de brote en las cuatro siguientes. La referencia de negocio del informe es la detección cuando los casos superan el canal endémico; la supuesta anticipación actual de cero semanas necesita respaldo y no constituye una medición institucional realizada por este proyecto.
 
-| Fuente | Entidad | Acceso | Periodo | Volumen |
-|---|---|---|---|---|
-| Vigilancia epidemiológica de dengue | CDC Perú – MINSA | Plataforma Nacional de Datos Abiertos ([COMPLETAR enlace]) | 2000–2024, semanal | 1 029 421 registros, 14 columnas, 103.5 MB (CSV `;`) |
-| NASA POWER: `T2M`, `RH2M`, `PRECTOTCORR` | NASA Langley Research Center | API pública, descarga automática desde el notebook | 2000–2024, diario | 19 puntos, 173 508 filas |
+La meta inicial fue AUC-ROC > 0.80. Se alcanza en prueba completa, pero no en semanas sin brote vigente, que se acercan más a la pregunta de anticipación. La evaluación debe contrastarse con referencias simples, prevalencia, falsas alarmas y estabilidad temporal; no solo con superar 0.80.
 
-**Los datos no se versionan** porque el registro de vigilancia contiene edad, sexo y localidad de
-pacientes. Solo se incluye `data/muestra/`, que es el panel final agregado por departamento y semana,
-sin datos personales.
+## Fuentes y granularidad
 
-## Arquitectura Línea Base
+| Fuente | Periodo | Datos originales |
+|---|---|---|
+| Vigilancia epidemiológica de dengue, CDC Perú / MINSA | 2000–2024 | 1 029 421 registros, 14 columnas, CSV separado por `;`, aproximadamente 103.5 MB |
+| NASA POWER, API diaria | 2000–2024 | 19 puntos, 9 132 días por punto; temperatura T2M, humedad RH2M y precipitación PRECTOTCORR |
+
+Dengue: [Plataforma Nacional de Datos Abiertos](https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-dengue). Clima: `https://power.larc.nasa.gov/api/temporal/daily/point`.
+
+La auditoría de las respuestas climáticas encontró cero valores de relleno `-999`, pero solo 17 series distintas: Amazonas/Cajamarca y Lima/Callao tienen series exactamente iguales. Un punto por departamento no representa todos sus focos; la resolución espacial limita la señal. No se demuestra que estas limitaciones expliquen por sí solas el resultado del modelo.
+
+## Arquitectura implementada
 
 ```mermaid
 flowchart LR
-    A[CSV dengue MINSA] --> R[(raw)]
+    A[CSV dengue MINSA] --> R[Raw local]
     B[API NASA POWER] --> R
-    R --> BR[(Bronze<br/>texto + linaje)]
-    BR --> SD[(Silver dengue<br/>tipos + reglas de calidad)]
-    BR --> SC[(Silver clima<br/>semana epidemiológica)]
-    SD --> G[(Gold<br/>panel departamento x semana)]
+    R --> BR[Bronze: texto y linaje]
+    BR --> SD[Silver dengue: tipos y calidad]
+    BR --> SC[Silver clima: agregado semanal]
+    SD --> G[Gold: departamento por semana]
     SC --> G
-    G --> M[modeloBase<br/>objetivo, EDA y modelo]
+    G --> M[Variables, exploración y modelos]
 ```
 
-| Capa | Ruta | Contenido | Formato |
-|---|---|---|---|
-| Raw | `data/raw/` | Archivos originales, nunca se modifican | CSV, JSON |
-| Bronze | `data/bronze/` | El dato tal como llegó, todo como texto, con `_archivo_origen` y `_fecha_ingesta` | Parquet |
-| Silver | `data/silver/` | Dengue tipado y validado (particionado por `ano`), registros rechazados con su motivo, clima semanal | Parquet |
-| Gold | `data/gold/panel_dengue_clima` | Una fila por departamento × semana epidemiológica, incluidas las semanas sin casos | Parquet |
+| Capa | Ruta bajo `data/` | Contrato |
+|---|---|---|
+| Raw | `raw/` | CSV dengue y respuestas originales NASA; no se modifican en el pipeline |
+| Bronze | `bronze/` | Texto sin inferencia de tipos y metadatos `_archivo_origen`, `_fecha_ingesta`; Parquet |
+| Silver | `silver/` | Dengue tipado, particionado por año, rechazados con motivo; clima semanal; Parquet |
+| Gold | `gold/panel_dengue_clima/` | Una fila por departamento/año/semana; conteo cero en semanas sin casos; Parquet |
 
-La tabla Gold es el **contrato** entre los dos notebooks: `modeloBase` solo depende de sus columnas
-(`cod_dep, departamento, ano, semana, casos, temp_media, hum_media, precip_total`).
+Gold contiene exactamente `cod_dep`, `departamento`, `ano`, `semana`, `casos`, `temp_media`, `hum_media`, `precip_total`. Su clave es departamento/año/semana. En la ejecución validada hay **24 776 filas**. El notebook `modeloBase` depende de este esquema, no de registros individuales.
 
-## Estructura del repositorio
+El almacenamiento real es disco local montado en Docker: no se implementa HDFS, catálogo gestionado ni clúster multinodo. Spark se ejecuta en modo local. La reconstrucción desde Raw permite recuperar datos, pero no acredita alta disponibilidad. Migrar a S3/HDFS requiere adaptar rutas, credenciales, conectores y accesos; no basta con afirmar sustitución sin validación. Parquet y el esquema Gold reducen el acoplamiento entre componentes.
 
-```
-.
-├── README.md
-├── docker-compose.yml
-├── .gitignore
-├── notebooks/
-│   ├── cargaDatos.ipynb      # raw → Bronze → Silver → Gold, tiempos y escalabilidad
-│   └── modeloBase.ipynb      # variable objetivo, análisis exploratorio y modelo base
-└── data/                     # no se versiona, salvo data/muestra/
-    ├── raw/                  # CSV de dengue (manual) y clima_nasa/ (automático)
-    ├── bronze/  silver/  gold/
-    ├── metricas/             # tiempos, escalabilidad y métricas del modelo
-    ├── figuras/              # figuras del análisis exploratorio
-    └── muestra/              # panel Gold agregado (sí se versiona)
-```
+### Calidad y privacidad
 
-## Requisitos
+Se normalizan textos y ubigeos, tipan años y semanas, validan diagnóstico, sexo, edad y calendario; se separan rechazados con motivo. La semana 53 solo se admite en años epidemiológicos que la tienen. Las filas idénticas se conservan porque, sin identificador de caso, pueden representar pacientes distintos.
 
-- Docker Engine o Docker Desktop con Compose v2
-- 8 GB de RAM recomendados (Spark usa 4 GB)
-- Unos 3 GB de disco libre; la prueba de escalabilidad ×100 necesita bastante más
-- Conexión a internet en la primera ejecución, para descargar el clima de NASA POWER
+En clima, `-999` y valores fuera de rangos físicos se convierten en nulos; se agregan semanas con siete días. Ambos conjuntos usan semanas de domingo a sábado, con semana 1 que contiene el 4 de enero. Gold verifica número de filas, conservación de casos y ausencia de clima nulo en los controles implementados.
 
-## Instalación
+Los datos individuales permanecen fuera de Git; Silver descarta localidad, localcod y diresa, pero conserva otros atributos individuales. Gold solo contiene agregados. No se afirma anonimización absoluta ni se ha realizado una auditoría formal de reidentificación. El informe cita la Ley N.º 29733; la conformidad legal no queda demostrada por descartar columnas. No hay controles productivos de cifrado/autorización acreditados por este repositorio.
+
+## Instalación y reproducción
+
+Requisitos: Docker Desktop/Engine con Compose v2, aproximadamente 8 GB de RAM disponibles para el entorno, espacio libre para originales y capas, e internet en la primera descarga climática. El crecimiento de réplicas consume espacio adicional.
 
 ```bash
-git clone https://github.com/[COMPLETAR-usuario]/minsadengue-bigdata.git
-cd minsadengue-bigdata
+git clone https://github.com/JhonTMich/geresa-bigdata.git
+cd geresa-bigdata
 docker compose up -d
-docker compose logs pyspark
+docker compose logs pyspark-notebook
 ```
 
-- Jupyter: http://localhost:8888
-- Spark UI (mientras haya una sesión activa): http://localhost:4040
+Jupyter: `http://localhost:8888`. Spark UI: `http://localhost:4040` mientras exista una sesión activa. La imagen declarada usa `latest`: puede cambiar; las mediciones registradas se hicieron con Spark 3.5.0 y Python 3.11.6.
 
-## Obtención de los datos
+1. Guardar el CSV como `data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv`.
+2. Ejecutar `notebooks/cargaDatos.ipynb` completo. NASA se descarga y se reutilizan archivos existentes.
+3. Ejecutar `notebooks/modeloBase.ipynb` completo después de obtener Gold.
 
-1. **Dengue:** descargar el conjunto de vigilancia epidemiológica de dengue desde https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-dengue y guardarlo como `data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv`.
-2. **Clima:** no requiere acción. La primera celda de descarga de `cargaDatos.ipynb` consulta la API
-   de NASA POWER y guarda las respuestas en `data/raw/clima_nasa/`. Las ejecuciones posteriores
-   reutilizan esos archivos y no vuelven a descargar.
+El modelo requiere Gold; no existe actualmente lectura alternativa de una muestra CSV implementada. Las capas se sobrescriben: no ejecutar mediciones del pipeline en paralelo ni mientras se consulta la misma salida.
 
-## Orden de ejecución
-
-1. `notebooks/cargaDatos.ipynb` → *Restart & Run All* (secciones 0 a 6).
-2. `notebooks/cargaDatos.ipynb`, sección 7 (escalabilidad) → opcional y pesada. Borrar
-   `data/escalabilidad/` al terminar.
-3. `notebooks/modeloBase.ipynb` → *Restart & Run All*.
-
-### Parámetros principales
-
-| Parámetro | Notebook | Valor | Significado |
-|---|---|---|---|
-| `USAR_CACHE` | cargaDatos | `False` | Activa la caché de Bronze. Correr con `False` y `True` para comparar tiempos |
-| `SHUFFLE_PARTITIONS` | cargaDatos | `8` | Particiones de shuffle. El valor por defecto de Spark es 200 |
-| `MIN_CASOS_DEPARTAMENTO` | cargaDatos | `1000` | Mínimo de casos en 25 años para que un departamento entre al modelo |
-| `FACTORES` | cargaDatos | `[1]` | Réplicas para la prueba de escalabilidad |
-| `ANIOS_HISTORIA` | modeloBase | `5` | Años previos usados para el canal endémico |
-| `MIN_CASOS_BROTE` | modeloBase | `5` | Mínimo de casos para considerar una semana como brote |
-| `HORIZONTE` | modeloBase | `4` | Semanas de anticipación que se predicen |
-
-### Ejecución rápida con la muestra
-
-Sin el CSV de dengue, `modeloBase.ipynb` se puede ejecutar igual: si no encuentra la tabla Gold,
-usa `data/muestra/panel_dengue_clima.csv`.
-
-## Decisiones metodológicas principales
-
-- **Semana epidemiológica (domingo a sábado),** calculada con la regla estándar: la semana 1 es la
-  que contiene el 4 de enero. Se aplica igual al dengue y al clima.
-- **Clima en el foco de dengue,** no en la capital departamental. Cuando la celda de NASA POWER
-  mezclaba costa y sierra, se eligió la celda vecina costera o de la misma cuenca.
-- **Anomalías climáticas por departamento,** calculadas con años de entrenamiento únicamente.
-- **19 departamentos modelados,** que concentran el 99.93 % de los casos.
-- **Brote según canal endémico:** casos por encima del cuartil 3 de la misma semana en los 5 años previos.
-- **Partición temporal:** entrenamiento 2005–2019, prueba 2021–2024. 2020 se excluye por la caída
-  de notificación durante la pandemia.
-
-## Privacidad
-
-- `data/` no se versiona; ningún registro individual llega al repositorio.
-- Silver elimina `localidad`, `localcod` y `diresa`.
-- Gold y la muestra contienen solo conteos agregados por departamento y semana.
-- Marco normativo: Ley N.º 29733, Ley de Protección de Datos Personales del Perú.
-
-## Limitaciones
-
-- Resolución de NASA POWER de unos 50 km. Amazonas y Cajamarca comparten celda, al igual que Lima y Callao.
-- Un solo foco climático por departamento. Departamentos con varios focos lejanos (Loreto, Cusco) quedan
-  representados de forma parcial.
-- Subnotificación y cambios en la vigilancia a lo largo de 25 años.
-- No se modela el retraso de notificación.
-- Seis departamentos sin transmisión sostenida quedan fuera del modelo predictivo.
-
-## Resultados del modelo base
-
-| Modelo | AUC-ROC | AUC-PR | Precisión | Recall |
-|---|---|---|---|---|
-| Persistencia | 0.886 | 0.942 | 0.968 | 0.828 |
-| Logística: solo casos | 0.928 | 0.964 | 0.796 | 0.955 |
-| Logística: casos + clima (línea base) | 0.922 | 0.962 | 0.782 | 0.958 |
-
-Fuente: `data/metricas/modelo_base.csv`.
-
-## Fuentes y créditos
-
-- Datos climáticos obtenidos del proyecto POWER del NASA Langley Research Center, financiado por el
-  programa NASA Earth Science / Applied Science.
-- Datos de vigilancia epidemiológica: Centro Nacional de Epidemiología, Prevención y Control de
-  Enfermedades (CDC Perú), Ministerio de Salud.
-
-## Uso de inteligencia artificial generativa
-
-Declarado en el Anexo A del informe del proyecto.
-
-## Correcciones y experimentos reproducibles
-
-- [Mediciones del pipeline y aporte del clima](docs/correcciones_parcial.md).
-- [Primera validación temporal](docs/validacion_clima_temporal.md).
-
-Ejecutar secuencialmente dentro del contenedor (las corridas del pipeline sobrescriben capas):
+### Ejecuciones automáticas y evidencias
 
 ```bash
 docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/medir_optimizacion.py
@@ -194,12 +94,120 @@ docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/resumir
 docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/validar_clima_temporal.py --train-end 2014 --valid-end 2019
 ```
 
-La medición de rendimiento usa dos hilos, driver configurado en 4 GB y tres repeticiones
-por configuración. TOTAL suma etapas instrumentadas, no el tiempo completo del notebook.
-La caché del SO no se controla. La escalabilidad está desactivada por defecto: comenzar
-con ×1 y aumentar gradualmente según recursos; no es necesario forzar ×100. Las réplicas
-conservan valores idénticos y no demuestran escalabilidad multinodo.
+Los notebooks ejecutados quedan en `output/`, ignorado por Git. Métricas y probabilidades agregadas quedan en `data/metricas/`. Los CSV de resultados y protocolos sin datos personales se conservan en `docs/evidencias/` para versionado. No hace falta consultar otro documento para interpretar los resultados principales incluidos abajo.
 
-La validación climática separa años de entrenamiento y validación con embargo de cuatro
-semanas y climatología calculada hasta el fin del entrenamiento. Sus parámetros permiten
-varios cortes sin usar 2021–2024. Es exploratoria: ese test ya fue inspeccionado.
+## Rendimiento medido: caché y particiones
+
+Se ejecutaron cuatro configuraciones, tres repeticiones cada una, con kernel nuevo, orden aleatorio de semilla 42, Spark `local[2]` y driver configurado en 4 GB. Docker informó 12 CPU y aproximadamente 7.3 GiB de RAM. Se varió la caché de Bronze; la caché del clima se mantuvo igual. La caché del SO no se controló.
+
+| Caché Bronze | Shuffle configurado | Mediana (s) | Mínimo (s) | Máximo (s) |
+|---|---:|---:|---:|---:|
+| No | 8 | 26.52 | 26.16 | 32.80 |
+| No | 200 | 29.92 | 28.45 | 36.01 |
+| Sí | 8 | 31.06 | 29.54 | 39.69 |
+| Sí | 200 | 32.39 | 26.58 | 33.36 |
+
+Ocho particiones sin caché produjo una mediana 11.4 % menor que 200 sin caché. La caché aumentó la mediana 17.1 % con ocho particiones y 8.3 % con 200: no se sostiene su beneficio aquí. El valor predeterminado pasó a `USAR_CACHE=False`, con `SHUFFLE_PARTITIONS=8`. Los rangos se solapan; tres corridas no prueban una ventaja universal ni significancia estadística.
+
+`TOTAL` suma siete etapas instrumentadas, no el tiempo completo: excluye arranque, descarga climática y parte de los controles. Las particiones configuradas no equivalen necesariamente al número de tareas efectivo de todas las etapas.
+
+## Escalabilidad: alcance y límites
+
+`EJECUTAR_ESCALABILIDAD=False` y `FACTORES=[1]` son los valores iniciales. El interruptor ahora controla realmente el bucle. Ampliar manualmente a ×2, ×5 y ×10 solo si hay recursos. No es obligatorio alcanzar ×100; documentar el límite observado. El ordenamiento aleatorio está desactivado porque añade carga de shuffle y no elimina los duplicados.
+
+La validación ×1 procesó 1 029 421 registros: **5.5 s** para transformación Silver y construcción/conteo Gold, Bronze físico 4.9 MB, Silver 2.9 MB, shuffle reportado 0.1 MB, spill de memoria/disco 0 y pico de ejecución por etapa 271.6 MB. Este pico no representa RAM total del equipo o proceso. Una métrica ausente se escribe nula, no cero.
+
+Generar y contar las réplicas ocurre antes de medir; la entrada está recién escrita/leída y la caché del SO favorece el I/O. Copias idénticas se comprimen mucho. Por tanto, los tiempos antiguos de ×100 no acreditan escalabilidad multinodo ni necesidad de clúster. El conjunto original cabe en una máquina; la necesidad de procesamiento distribuido y el punto de quiebre todavía no están demostrados.
+
+## Modelo, etiquetas y referencias
+
+Brote: casos superiores al Q3 de la misma semana en los cinco años previos, con mínimo de cinco casos. La semana 53 usa como referencia histórica la 52. Etiqueta positiva: al menos una semana de brote en las siguientes cuatro; sin horizonte completo, no se asigna etiqueta.
+
+Entrenamiento original 2005–2019; prueba 2021–2024. El año 2020 no se incluye como fila de entrenamiento/prueba, aunque el protocolo original no garantiza excluirlo de todas las ventanas históricas o desenlaces próximos a los límites. Las nuevas validaciones aplican embargo explícito. Se usan logaritmo de casos actuales, rezago de una semana, brote actual y anomalías de temperatura, humedad y precipitación en ventanas 0–3, 4–7 y 8–11 semanas. Las logísticas usan escalado y ponderaciones de clase ajustadas en entrenamiento.
+
+La prueba completa tiene 3 876 filas etiquetadas y prevalencia 67.23 %. Sin brote actual hay 1 647 filas y 449 positivas (27.26 %). Son semanas departamentales, no episodios independientes: las ventanas se solapan. Ninguna fila etiquetada se perdió por predictores nulos; las 76 filas finales sin etiqueta se excluyen por horizonte incompleto.
+
+| Referencia/modelo, prueba completa | AUC-ROC | AUC-PR Spark | Precisión | Recall |
+|---|---:|---:|---:|---:|
+| Siempre brote | 0.500 | 0.672 | 0.672 | 1.000 |
+| Persistencia | 0.886 | 0.942 | 0.968 | 0.828 |
+| Logística: casos | 0.928 | 0.964 | 0.796 | 0.955 |
+| Logística: casos + clima | 0.922 | 0.962 | 0.782 | 0.958 |
+| Logística: clima | 0.577 | 0.745 | 0.689 | 0.527 |
+
+La mayoría en entrenamiento es negativa: su regla constante acierta 32.8 % en prueba. «Siempre brote» es una referencia distinta, que acierta 67.2 %. La persistencia acierta 86.6 %, frente a 79.2 % de casos + clima al umbral 0.5. La prevalencia afecta especialmente precisión, exactitud y referencia PR; no explica automáticamente el AUC-ROC.
+
+### Evaluación de semanas sin brote vigente
+
+| Logística | AUC-ROC | Average precision | Precisión a 0.5 | Recall a 0.5 | VP | FP |
+|---|---:|---:|---:|---:|---:|---:|
+| Casos | 0.7103 | 0.4435 | 0.3708 | 0.7416 | 333 | 565 |
+| Casos + clima | 0.6889 | 0.4330 | 0.3524 | 0.7550 | 339 | 623 |
+| Clima | 0.5182 | 0.2667 | 0.2608 | 0.4566 | 205 | 581 |
+
+Agregar clima detecta seis semanas positivas más, pero genera 58 falsas alarmas adicionales. No se demuestra beneficio operativo. La persistencia siempre predice cero en este subconjunto; superarla no es suficiente. El ranking de casos actuales sin modelo ya alcanza AUC 0.704. Para ese ranking no se aplican métricas de clasificación con umbral arbitrario 0.5.
+
+`average_precision` usa sklearn y no coincide exactamente con el área PR interpolada de Spark. No deben mezclarse ambos cálculos en una misma comparación. Los umbrales siguen fijos en 0.5; no se comparó a igual recall ni se establecieron costos institucionales de error.
+
+| Año sin brote vigente | AUC casos | AUC casos + clima |
+|---|---:|---:|
+| 2021 | 0.7072 | 0.7130 |
+| 2022 | 0.8288 | 0.8317 |
+| 2023 | 0.6217 | 0.6019 |
+| 2024 | 0.7121 | 0.6877 |
+
+La señal cambia con el tiempo. Estos resultados no demuestran que el clima carezca de relación con dengue: no aporta mejora consistente con esta representación, modelo y periodo.
+
+## Validación exploratoria de otra representación climática
+
+Se entrenó con 2005–2014 y validó con 2015–2019. Se recortaron datos posteriores a 2019 antes de construir etiquetas, se excluyeron cuatro semanas finales de entrenamiento y se calculó climatología solo hasta 2014. Se compararon seis modelos sobre las mismas 4 864 filas. Las variables absolutas son promedios de temperatura, humedad y precipitación semanal en las mismas tres ventanas causales.
+
+| Algoritmo, semanas sin brote actual | Variables | AUC-ROC | Average precision |
+|---|---|---:|---:|
+| Logística | Casos | 0.7587 | 0.2644 |
+| Logística | Casos + anomalías | 0.7650 | 0.2798 |
+| Logística | Casos + anomalías + niveles absolutos | 0.7730 | 0.3207 |
+| Random Forest | Casos | 0.7581 | 0.2619 |
+| Random Forest | Casos + anomalías | 0.7568 | 0.2810 |
+| Random Forest | Casos + anomalías + niveles absolutos | 0.7484 | 0.2344 |
+
+RF usa 50 árboles, profundidad 5 y semilla 42; logística maxIter=100. No se buscaron hiperparámetros ni se calibró el umbral. Este primer corte sugiere investigar niveles absolutos para logística; cambiar a árboles no resolvió automáticamente el problema.
+
+## Estabilidad en tres bloques temporales
+
+Entrenamientos expansivos 2005–2010, 2005–2014 y 2005–2017; validaciones no solapadas 2011–2014, 2015–2017 y 2018–2019. Cada corte recalcula climatología solo con entrenamiento, aplica embargo de cuatro semanas al final de entrenamiento y excluye las cuatro semanas finales de validación sin desenlace completo. Se ejecutaron 18 modelos, sin búsqueda de hiperparámetros ni ajuste del umbral.
+
+A continuación se comparan casos solos con casos más anomalías y niveles absolutos, únicamente en semanas sin brote vigente.
+
+| Validación | Algoritmo | AUC casos | AUC con clima absoluto | AP casos | AP con clima absoluto |
+|---|---|---:|---:|---:|---:|
+| 2011–2014 | logistica | 0.8496 | 0.8416 | 0.4719 | 0.4446 |
+| 2011–2014 | random_forest | 0.8472 | 0.8438 | 0.4406 | 0.4651 |
+| 2015–2017 | logistica | 0.7082 | 0.7211 | 0.2678 | 0.3368 |
+| 2015–2017 | random_forest | 0.7057 | 0.6885 | 0.2662 | 0.2282 |
+| 2018–2019 | logistica | 0.7946 | 0.8165 | 0.2549 | 0.2498 |
+| 2018–2019 | random_forest | 0.8005 | 0.7884 | 0.2482 | 0.2361 |
+
+AP significa average precision. En logística, el clima absoluto mejora AUC en dos de tres bloques y AP en uno de tres; en 2018–2019 sube AUC pero baja AP. RF pierde AUC en los tres bloques al agregar esta representación. Con anomalías sin niveles absolutos, los AUC logísticos son 0.8479, 0.7079 y 0.8097, respectivamente; tampoco hay una mejora uniforme.
+
+Conclusión: la mejora del primer corte amplio no es estable entre periodos ni métricas. Se mantiene la línea base y no se declara resuelto el aporte climático. El siguiente paso es examinar heterogeneidad regional y calibración de alertas dentro de validación, con criterio de falsas alarmas acordado; una evaluación independiente seguirá siendo necesaria.
+
+```bash
+docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/validar_clima_temporal.py --train-end 2010 --valid-end 2014
+docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/validar_clima_temporal.py --train-end 2014 --valid-end 2017
+docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/validar_clima_temporal.py --train-end 2017 --valid-end 2019
+```
+
+Los protocolos, conteos, prevalencias y métricas completas quedan en `docs/evidencias/validacion_clima/<train-end>_<valid-start>_<valid-end>/`. Las probabilidades y notebooks se conservan localmente. Las ejecuciones terminaron correctamente; Spark emitió advertencias al limpiar directorios temporales durante el cierre, sin errores en las celdas ni pérdida de resultados.
+
+## Limitaciones, conclusiones y trabajo pendiente
+
+No se demuestra aún una alerta temprana suficientemente útil ni un aporte climático estable. El pipeline y las comparaciones reproducibles sí constituyen resultados verificables. Persisten resolución espacial limitada, subnotificación, cambios de vigilancia, ausencia de retrasos de notificación, departamentos excluidos y selección de departamentos basada en el periodo completo.
+
+Los experimentos posteriores son exploratorios porque 2021–2024 ya se inspeccionó. Nuevas variables, modelos y umbrales deben elegirse en validación temporal, no optimizando ese test. Hará falta una evaluación independiente para confirmar generalización. Cambiar la definición de brote para mejorar la métrica invalidaría la comparación directa y requiere justificación separada.
+
+Pendientes: estabilidad regional y confirmación independiente; umbral elegido con validación y presupuesto explícito de falsas alarmas; evidencia de escalas adicionales y punto de quiebre; costos y sostenibilidad; actualización del informe; respaldo de aprobación del equipo y planificación real frente a ejecutada.
+
+La declaración de IA debe registrar herramientas, secciones y verificaciones efectivamente realizadas, incluidas las correcciones asistidas por Codex de esta rama. El Anexo A y las firmas requieren revisión de los integrantes; no se han completado ni firmado en su nombre. No existe presupuesto monetario productivo medido: se utiliza infraestructura local y fuentes públicas, pero no se cuantificaron hardware, electricidad ni operación.
+
+Se conserva el trabajo en `feature/correcciones-parcial`, con Conventional Commits separados por cambio. La integración a la rama de desarrollo y posteriormente a principal corresponde al flujo GitFlow del repositorio; estos cambios no se han fusionado ni publicado.
