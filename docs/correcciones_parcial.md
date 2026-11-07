@@ -104,3 +104,7 @@ requeriría datos no utilizados. Mantener la definición del objetivo durante la
 La escala ×100 sigue desactivada. La prueba local con réplicas, compresión y caché del SO
 no acredita escalabilidad multinodo. Permanecen pendientes las escalas graduales adicionales,
 la actualización del informe PDF, costos/arquitectura y los respaldos del equipo/Anexo A.
+
+## Avance posterior
+
+Se ejecutó el primer corte de validación temporal con embargo y comparación de niveles absolutos y Random Forest. Ver [resultados exploratorios](validacion_clima_temporal.md). La estabilidad entre cortes sigue pendiente.

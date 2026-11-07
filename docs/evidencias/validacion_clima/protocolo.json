@@ -1,0 +1,26 @@
+{
+  "train": [
+    2005,
+    2014
+  ],
+  "validacion": [
+    2015,
+    2019
+  ],
+  "embargo_semanas_train": 4,
+  "climatologia_hasta": 2014,
+  "ultimo_anio_datos": 2019,
+  "umbral_fijo": 0.5,
+  "rf": {
+    "numTrees": 50,
+    "maxDepth": 5,
+    "seed": 42
+  },
+  "spark": "3.5.0",
+  "master": "local[2]",
+  "n_train": 9842,
+  "n_validacion": 4864,
+  "prevalencia_train": 0.30420646210119895,
+  "prevalencia_validacion": 0.3053042763157895,
+  "nota": "Experimento exploratorio posterior a inspeccionar test; no es confirmaci\u00f3n independiente."
+}
