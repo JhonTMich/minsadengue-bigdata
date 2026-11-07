@@ -117,10 +117,10 @@ docker compose logs pyspark
 
 | Parámetro | Notebook | Valor | Significado |
 |---|---|---|---|
-| `USAR_CACHE` | cargaDatos | `True` | Activa la caché de Bronze. Correr con `False` y `True` para comparar tiempos |
+| `USAR_CACHE` | cargaDatos | `False` | Activa la caché de Bronze. Correr con `False` y `True` para comparar tiempos |
 | `SHUFFLE_PARTITIONS` | cargaDatos | `8` | Particiones de shuffle. El valor por defecto de Spark es 200 |
 | `MIN_CASOS_DEPARTAMENTO` | cargaDatos | `1000` | Mínimo de casos en 25 años para que un departamento entre al modelo |
-| `FACTORES` | cargaDatos | `[1, 10, 100]` | Réplicas para la prueba de escalabilidad |
+| `FACTORES` | cargaDatos | `[1]` | Réplicas para la prueba de escalabilidad |
 | `ANIOS_HISTORIA` | modeloBase | `5` | Años previos usados para el canal endémico |
 | `MIN_CASOS_BROTE` | modeloBase | `5` | Mínimo de casos para considerar una semana como brote |
 | `HORIZONTE` | modeloBase | `4` | Semanas de anticipación que se predicen |
@@ -178,3 +178,28 @@ Fuente: `data/metricas/modelo_base.csv`.
 ## Uso de inteligencia artificial generativa
 
 Declarado en el Anexo A del informe del proyecto.
+
+## Correcciones y experimentos reproducibles
+
+- [Mediciones del pipeline y aporte del clima](docs/correcciones_parcial.md).
+- [Primera validación temporal](docs/validacion_clima_temporal.md).
+
+Ejecutar secuencialmente dentro del contenedor (las corridas del pipeline sobrescriben capas):
+
+```bash
+docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/medir_optimizacion.py
+docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/resumir_optimizacion.py
+docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/evaluar_aporte_clima.py
+docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/resumir_aporte_clima.py
+docker compose exec -T pyspark-notebook python /home/jovyan/work/scripts/validar_clima_temporal.py --train-end 2014 --valid-end 2019
+```
+
+La medición de rendimiento usa dos hilos, driver configurado en 4 GB y tres repeticiones
+por configuración. TOTAL suma etapas instrumentadas, no el tiempo completo del notebook.
+La caché del SO no se controla. La escalabilidad está desactivada por defecto: comenzar
+con ×1 y aumentar gradualmente según recursos; no es necesario forzar ×100. Las réplicas
+conservan valores idénticos y no demuestran escalabilidad multinodo.
+
+La validación climática separa años de entrenamiento y validación con embargo de cuatro
+semanas y climatología calculada hasta el fin del entrenamiento. Sus parámetros permiten
+varios cortes sin usar 2021–2024. Es exploratoria: ese test ya fue inspeccionado.
