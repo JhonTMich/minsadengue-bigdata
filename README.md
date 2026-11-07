@@ -55,7 +55,7 @@ flowchart LR
 
 Gold contiene exactamente `cod_dep`, `departamento`, `ano`, `semana`, `casos`, `temp_media`, `hum_media`, `precip_total`. Su clave es departamento/año/semana. En la ejecución validada hay **24 776 filas**. El notebook `modeloBase` depende de este esquema, no de registros individuales.
 
-El almacenamiento real es disco local montado en Docker: no se implementa HDFS, catálogo gestionado ni clúster multinodo. Spark se ejecuta en modo local. La reconstrucción desde Raw permite recuperar datos, pero no acredita alta disponibilidad. Migrar a S3/HDFS requiere adaptar rutas, credenciales, conectores y accesos; no basta con afirmar sustitución sin validación. Parquet y el esquema Gold reducen el acoplamiento entre componentes.
+El almacenamiento real es disco local montado en Docker: no se implementa HDFS, catálogo gestionado ni clúster multinodo. Spark se ejecuta en modo local. La guía describe Ruta A con HDFS y YARN: esos componentes siguen pendientes en el entorno actual. La reconstrucción desde Raw permite recuperar datos, pero no acredita alta disponibilidad. Migrar a S3/HDFS requiere adaptar rutas, credenciales, conectores y accesos; no basta con afirmar sustitución sin validación. Parquet y el esquema Gold reducen el acoplamiento entre componentes.
 
 ### Calidad y privacidad
 
@@ -67,7 +67,7 @@ Los datos individuales permanecen fuera de Git; Silver descarta localidad, local
 
 ## Instalación y reproducción
 
-Requisitos: Docker Desktop/Engine con Compose v2, aproximadamente 8 GB de RAM disponibles para el entorno, espacio libre para originales y capas, e internet en la primera descarga climática. El crecimiento de réplicas consume espacio adicional.
+Requisitos: Docker Desktop/Engine con Compose v2, Python 3.10+ en el host (o `uv` para los comandos del supervisor), aproximadamente 8 GB de RAM disponibles para el entorno, espacio libre para originales y capas, e internet en la primera descarga climática. El crecimiento de réplicas consume espacio adicional.
 
 ```bash
 git clone https://github.com/JhonTMich/geresa-bigdata.git
@@ -76,7 +76,7 @@ docker compose up -d
 docker compose logs pyspark-notebook
 ```
 
-Jupyter: `http://localhost:8888`. Spark UI: `http://localhost:4040` mientras exista una sesión activa. La imagen declarada usa `latest`: puede cambiar; las mediciones registradas se hicieron con Spark 3.5.0 y Python 3.11.6.
+Jupyter: `http://localhost:8888`. Spark UI: `http://localhost:4040` mientras exista una sesión activa. La imagen se fija por digest `jupyter/pyspark-notebook@sha256:58377aaa152b741e244f201679f96d909a024ea337088cc276b0ee32ab3f076f`; las mediciones registradas usan Spark 3.5.0 y Python 3.11.6. El supervisor de escalabilidad resuelve la misma imagen declarada en Compose.
 
 1. Guardar el CSV como `data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv`.
 2. Ejecutar `notebooks/cargaDatos.ipynb` completo. NASA se descarga y se reutilizan archivos existentes.
@@ -113,11 +113,64 @@ Ocho particiones sin caché produjo una mediana 11.4 % menor que 200 sin caché.
 
 ## Escalabilidad: alcance y límites
 
-`EJECUTAR_ESCALABILIDAD=False` y `FACTORES=[1]` son los valores iniciales. El interruptor ahora controla realmente el bucle. La sección 3.7 de la guía exige réplicas ×10 y ×100, ejecutar el pipeline completo en cada escala y reportar tiempos y consumo de recursos. Ambas escalas siguen pendientes con ese alcance. Las escalas ×2 y ×5 son diagnósticos intermedios, no sustituyen el requisito. Si una ejecución falla o se interrumpe por recursos, registrar factor, etapa, tiempo transcurrido, recursos y causa; no declararla completada ni dar el requisito por satisfecho sin validación del docente. El ordenamiento aleatorio está desactivado porque añade carga de shuffle y no elimina los duplicados.
+La sección 3.7 de la guía exige ×10 y ×100 sobre el pipeline completo con tiempos y recursos. La sección 7 del notebook remite al ejecutor del host, para evitar lanzar réplicas masivas con «Run All».
 
-La medición actual cubre transformación Silver y construcción/conteo Gold; no mide ingesta completa ni escritura Gold en la prueba replicada. Debe ampliarse antes de usarla como evidencia de cumplimiento de la sección 3.7. La validación ×1 procesó 1 029 421 registros: **5.5 s** para transformación Silver y construcción/conteo Gold, Bronze físico 4.9 MB, Silver 2.9 MB, shuffle reportado 0.1 MB, spill de memoria/disco 0 y pico de ejecución por etapa 271.6 MB. Este pico no representa RAM total del equipo o proceso. Una métrica ausente se escribe nula, no cero.
+```bash
+uv run python scripts/ejecutar_escalabilidad.py
+uv run python scripts/resumir_escalabilidad.py
+```
+
+El primer comando ejecuta ×1, ×10 y ×100 secuencialmente. Cada factor usa un contenedor independiente de dos CPU y 4 GiB, sin swap del contenedor, Spark local[2] y driver de 2 GB. El timeout predeterminado es de 1800 segundos por factor, incluida la generación del CSV, y se exige reserva de disco. Los temporales de Spark se ubican en el volumen del proyecto para evitar llenar el disco del motor Docker; el worker reserva 8 GiB en ese volumen y el supervisor actualizado detiene la prueba si C: baja de 2 GiB en Windows. La imagen se resuelve a su identificador exacto y se registra. Se pueden elegir factores con `--factores 1 10 100` y timeout con `--timeout 1800`. `--reuse-raw` reutiliza un CSV previamente generado si coinciden tamaño y cabecera; los conteos y casos escalados se validan igualmente al terminar. Los resultados anteriores se archivan antes de repetir un factor.
+
+La réplica crece solo en registros de dengue; el clima permanece como fuente de referencia de tamaño fijo, evitando duplicar sus claves y multiplicar casos durante el join. Se leen los CSV, escriben Bronze, aplican controles y transformaciones Silver de ambas fuentes, y escriben y validan Gold. Se escala el umbral de selección de departamentos por el factor para mantener los mismos 19 departamentos. Se comprueba el conteo de registros y que los casos Gold sean los originales multiplicados por el factor.
+
+Las salidas quedan en `data/escalabilidad_completa/x<factor>/` y nunca alimentan el modelo ni sobrescriben las capas canónicas. `estado.json` indica etapa/resultado; `supervision.json` registra límites, imagen, salida, timeout y OOM. El monitoreo de cgroup registra memoria y CPU; la memoria de cgroup puede incluir caché y no equivale al heap JVM. Se admiten cgroup v1 y v2. Las métricas de spill/shuffle corresponden a etapas completas de la aplicación Spark, incluidos controles de referencia. Spill de memoria es volumen acumulado derramado, no el pico de RAM. Los logs se guardan en `output/escalabilidad_completa/`.
+
+El límite de RAM es del contenedor, no de todo el equipo. Si falla, se conserva la evidencia y se detienen las escalas siguientes de esa ejecución. Un intento fallido no se presenta como ejecución completada ni satisface automáticamente el requisito: debe contrastarse con el docente. El timeout es un presupuesto del experimento, no un punto de quiebre físico demostrado. No se usa ordenamiento aleatorio, que añadiría trabajo sin eliminar los duplicados.
+
+La medición parcial anterior cubría Silver y construcción/conteo Gold, sin ingesta ni escritura Gold: no sirve como ejecución completa de la sección 3.7. Como referencia histórica, aquella validación ×1 procesó 1 029 421 registros: **5.5 s** para transformación Silver y construcción/conteo Gold, Bronze físico 4.9 MB, Silver 2.9 MB, shuffle reportado 0.1 MB, spill de memoria/disco 0 y pico de ejecución por etapa 271.6 MB. Este pico no representa RAM total del equipo o proceso. Una métrica ausente se escribe nula, no cero.
 
 Generar y contar las réplicas ocurre antes de medir; la entrada está recién escrita/leída y la caché del SO favorece el I/O. Copias idénticas se comprimen mucho. Por tanto, los tiempos antiguos de ×100 no acreditan escalabilidad multinodo ni necesidad de clúster. El conjunto original cabe en una máquina; la necesidad de procesamiento distribuido y el punto de quiebre todavía no están demostrados.
+
+<!-- escalabilidad-resultados:inicio -->
+### Resultados del pipeline completo
+
+Una corrida por escala, con dos CPU, 4 GiB de límite de contenedor, heap de driver de 2 GB y temporales en E:. Se reutilizaron los CSV ya generados: la preparación reutilizada no se interpreta como tiempo de generación. La generación inicial del CSV ×100 tomó 207 s y produjo 10.86 GB; ese intento se interrumpió antes de Silver para trasladar los temporales de C: a E:, sin OOM ni timeout. Su motivo y métricas se conservaron por separado.
+
+| Factor | Estado | Registros dengue | Pipeline (s) | Tiempo relativo | Pico cgroup (GiB) | Spill memoria (MB) | Spill disco (MB) | Shuffle escrito (MB) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| 1 | completado | 1029421 | 64.98 | 1.00 | 1.22 | 0.00 | 0.00 | 67.03 |
+| 10 | completado | 10294210 | 142.95 | 2.20 | 2.38 | 805.31 | 93.60 | 322.98 |
+| 100 | completado | 102942100 | 1188.52 | 18.29 | 2.52 | 17951.61 | 2176.90 | 2633.79 |
+
+| Factor | Raw CSV (GB) | Bronze (MB) | Silver (MB) | Gold (MB) |
+|---|---:|---:|---:|---:|
+| 1 | 0.11 | 6.12 | 3.24 | 0.19 |
+| 10 | 1.09 | 46.32 | 29.43 | 0.19 |
+| 100 | 10.86 | 446.01 | 322.68 | 0.19 |
+
+| Etapa cronometrada | ×1 (s) | ×10 (s) | ×100 (s) |
+|---|---:|---:|---:|
+| bronze_dengue | 11.61 | 43.28 | 351.54 |
+| bronze_clima | 2.49 | 2.32 | 2.15 |
+| dengue_calidad | 13.00 | 27.32 | 178.06 |
+| dengue_silver_escritura | 14.64 | 49.45 | 623.24 |
+| clima_calidad | 2.79 | 1.92 | 1.44 |
+| clima_silver_escritura | 2.15 | 1.38 | 1.11 |
+| gold_escritura | 6.61 | 6.54 | 12.01 |
+
+Estas etapas parciales no suman el tiempo completo: el pipeline incluye controles y acciones adicionales fuera de sus cronómetros. La salida de rechazados usa coalesce(1), observada como una sola tarea en ×100; su tiempo forma parte de dengue_silver_escritura. No se cambió esta lógica durante la corrida.
+
+El tiempo de pipeline incluye ingesta de los CSV de dengue y clima, escritura Bronze/Silver/Gold y controles internos. Excluye generar la réplica, arrancar Spark y la comprobación independiente contra Gold canónico. Las métricas Spark incluyen también esa comprobación. El pico cgroup incluye memoria fuera del heap y puede incluir caché; para un intento fallido solo hay pico hasta el último muestreo, no necesariamente el pico final. Spill de memoria es volumen acumulado, no RAM instantánea.
+
+El presupuesto inicial fue 1200 s por factor. En ×100 se amplió a 1800 s por progreso sostenido y recursos estables, retomando solo la supervisión: no se reinició Spark ni se reinició el reloj del pipeline. El supervisor actualizado usa 1800 s por defecto.
+
+El aumento del volumen solo corresponde a dengue: clima y cardinalidad de Gold permanecen fijos. Las réplicas idénticas favorecen compresión y agregaciones; la caché del SO no se controla. Una corrida no estima variabilidad ni demuestra escalabilidad multinodo. No se deben comparar estos tiempos con los 5.5 s del experimento parcial ni con la suma de etapas del benchmark de optimización, que usan otro alcance y configuración.
+
+Las tres escalas terminaron sin OOM ni timeout; cada Gold tiene 24 776 filas y conserva los casos originales multiplicados por el factor. Se ejecutaron las escalas ×10 y ×100 solicitadas, con los límites de esta metodología. No se observó un fallo de capacidad hasta ×100: el spill demuestra presión de memoria, no que la máquina haya dejado de alcanzar. No hay evidencia suficiente para fijar un punto de quiebre exacto o afirmar que ya se necesita un clúster.
+
+La evidencia numérica y los protocolos quedan en `docs/evidencias/escalabilidad_completa/`; los datos replicados permanecen fuera de Git y del modelado.
+<!-- escalabilidad-resultados:fin -->
 
 ## Modelo, etiquetas y referencias
 
@@ -206,7 +259,7 @@ No se demuestra aún una alerta temprana suficientemente útil ni un aporte clim
 
 Los experimentos posteriores son exploratorios porque 2021–2024 ya se inspeccionó. Nuevas variables, modelos y umbrales deben elegirse en validación temporal, no optimizando ese test. Hará falta una evaluación independiente para confirmar generalización. Cambiar la definición de brote para mejorar la métrica invalidaría la comparación directa y requiere justificación separada.
 
-Pendientes: estabilidad regional y confirmación independiente; umbral elegido con validación y presupuesto explícito de falsas alarmas; ejecución completa ×10 y ×100 con recursos, límites de ejecución y punto de quiebre; costos y sostenibilidad; actualización del informe; respaldo de aprobación del equipo y planificación real frente a ejecutada.
+Pendientes: estabilidad regional y confirmación independiente; umbral elegido con validación y presupuesto explícito de falsas alarmas; delimitación del punto de quiebre, no observado en las escalas ejecutadas; costos y sostenibilidad; actualización del informe; respaldo de aprobación del equipo y planificación real frente a ejecutada.
 
 La declaración de IA debe registrar herramientas, secciones y verificaciones efectivamente realizadas, incluidas las correcciones asistidas por Codex de esta rama. El Anexo A y las firmas requieren revisión de los integrantes; no se han completado ni firmado en su nombre. No existe presupuesto monetario productivo medido: se utiliza infraestructura local y fuentes públicas, pero no se cuantificaron hardware, electricidad ni operación.
 

@@ -1,0 +1,15 @@
+{
+  "factor": 100,
+  "estado": "iniciado",
+  "etapa": "ingesta_bronze",
+  "cache_so": "no_controlada",
+  "clima_replicado": false,
+  "generacion_s": 207.03359275699995,
+  "raw_bytes": 10855027322,
+  "spark": "3.5.0",
+  "master": "local[2]",
+  "driver_memoria": "2g",
+  "limite_contenedor_gib": 4,
+  "shuffle_partitions": 8,
+  "segundos_transcurridos": 211.45798130000003
+}

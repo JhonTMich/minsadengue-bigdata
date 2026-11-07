@@ -12,7 +12,7 @@ from pathlib import Path
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--factores',type=int,nargs='+',default=[1,10,100],choices=[1,10,100])
-parser.add_argument('--timeout',type=int,default=1200,help='Segundos máximos por factor, incluida generación')
+parser.add_argument('--timeout',type=int,default=1800,help='Segundos máximos por factor, incluida generación')
 parser.add_argument('--reuse-raw',action='store_true',help='Reusar CSV previamente generado si coinciden tamaño y cabecera; validar conteos al terminar')
 args=parser.parse_args()
 if args.timeout<1:parser.error('timeout debe ser positivo')
