@@ -10,6 +10,7 @@ from pathlib import Path
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--factor',type=int,required=True,choices=[1,10,100])
+parser.add_argument('--reuse-raw',action='store_true')
 args=parser.parse_args()
 ROOT=Path(__file__).resolve().parents[1]
 BASE=ROOT/'data/escalabilidad_completa'/f'x{args.factor}'
@@ -53,14 +54,23 @@ try:
     raw=BASE/'raw/dengue.csv';raw.parent.mkdir(exist_ok=True)
     state['etapa']='generacion_raw';guardar()
     with original.open('rb') as f:
-        cabecera=f.readline();offset=f.tell()
-        with raw.open('wb') as dst:
-            dst.write(cabecera)
-            for _ in range(args.factor):
-                f.seek(offset);shutil.copyfileobj(f,dst,length=1024*1024)
-                # Evitar concatenar dos registros si el CSV original no termina en salto.
-                f.seek(-1,2)
-                if f.read(1)!=b'\n':dst.write(b'\n')
+        cabecera=f.readline();f.seek(-1,2);final=f.read(1)
+    esperado_csv=len(cabecera)+(original.stat().st_size-len(cabecera))*args.factor
+    if final!=b'\n':esperado_csv+=args.factor
+    reutilizar=args.reuse_raw and raw.exists() and raw.stat().st_size==esperado_csv
+    if reutilizar:
+        with raw.open('rb') as f:assert f.readline()==cabecera
+    else:
+        with original.open('rb') as f:
+            cabecera=f.readline();offset=f.tell()
+            with raw.open('wb') as dst:
+                dst.write(cabecera)
+                for _ in range(args.factor):
+                    f.seek(offset);shutil.copyfileobj(f,dst,length=1024*1024)
+                    # Evitar concatenar dos registros si el CSV original no termina en salto.
+                    f.seek(-1,2)
+                    if f.read(1)!=b'\n':dst.write(b'\n')
+    state['raw_reutilizado']=reutilizar
     state.update(generacion_s=time.perf_counter()-inicio,raw_bytes=raw.stat().st_size)
     spark_home=Path(os.environ.get('SPARK_HOME','/usr/local/spark'))
     import sys
@@ -68,6 +78,10 @@ try:
     nb=json.loads((ROOT/'notebooks/cargaDatos.ipynb').read_text())
     env={}
     config=''.join(nb['cells'][1]['source']).replace('.appName("ModeloPredictivoDenguePeru")','.master("local[2]").appName("EscalabilidadCompleta")').replace('"4g"','"2g"')
+    temporales=BASE/'spark_tmp';temporales.mkdir(exist_ok=True)
+    os.environ['SPARK_LOCAL_DIRS']=str(temporales)
+    config=config.replace('.getOrCreate()', f'.config("spark.local.dir", {str(temporales)!r}).getOrCreate()')
+    state['spark_temporales']=str(temporales)
     exec(compile(config,'configuracion','exec'),env)
     spark=env['spark']
     state.update(spark=spark.version,master=spark.sparkContext.master,driver_memoria='2g',limite_contenedor_gib=4,shuffle_partitions=env['SHUFFLE_PARTITIONS'])
