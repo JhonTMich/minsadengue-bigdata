@@ -2,10 +2,18 @@
 Ejecutar dentro del contenedor con python scripts/validar_clima_temporal.py.
 """
 import os
+import argparse
 from pathlib import Path
 import nbformat
 from nbclient import NotebookClient
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--train-end', type=int, default=2014)
+parser.add_argument('--valid-end', type=int, default=2019)
+args = parser.parse_args()
+if not 2005 <= args.train_end < args.valid_end <= 2019:
+    parser.error('Se requiere 2005 <= train-end < valid-end <= 2019')
+CORTE = f'{args.train_end}_{args.train_end+1}_{args.valid_end}'
 ROOT = Path(__file__).resolve().parents[1]
 SPARK = Path(os.environ.get('SPARK_HOME', '/usr/local/spark'))
 os.environ['PYTHONPATH'] = os.pathsep.join([str(SPARK/'python'), *map(str,(SPARK/'python/lib').glob('py4j-*-src.zip')), os.environ.get('PYTHONPATH','')])
@@ -15,9 +23,9 @@ cells = [c for c in base.cells[:4] if c.cell_type == 'code']
 for c in cells:
     c.outputs = []; c.execution_count = None
     c.source = c.source.replace('.appName("ModeloBaseDengue")', '.master("local[2]").appName("ValidacionTemporalClima")')
-    c.source = c.source.replace('ANIOS_TRAIN = (2005, 2019)', 'ANIOS_TRAIN = (2005, 2014)').replace('ANIOS_TEST = (2021, 2024)', 'ANIOS_TEST = (2015, 2019)')
+    c.source = c.source.replace('ANIOS_TRAIN = (2005, 2019)', f'ANIOS_TRAIN = (2005, {args.train_end})').replace('ANIOS_TEST = (2021, 2024)', f'ANIOS_TEST = ({args.train_end+1}, {args.valid_end})')
     # Cortar antes del cálculo de etiquetas: tampoco usar desenlaces de 2020 para 2019.
-    c.source = c.source.replace('panel = spark.read.parquet(ruta_salida("gold", "panel_dengue_clima"))', 'panel = spark.read.parquet(ruta_salida("gold", "panel_dengue_clima")).filter(F.col("ano") <= 2019)')
+    c.source = c.source.replace('panel = spark.read.parquet(ruta_salida("gold", "panel_dengue_clima"))', f'panel = spark.read.parquet(ruta_salida("gold", "panel_dengue_clima")).filter(F.col("ano") <= {args.valid_end})')
 experimento = '''
 from pyspark.ml.classification import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, average_precision_score, confusion_matrix
@@ -74,6 +82,12 @@ for algoritmo in ["logistica", "random_forest"]:
 display(pd.DataFrame(filas))
 spark.stop()
 '''
+experimento = experimento.replace('between(2005, 2014)', f'between(2005, {args.train_end})')
+experimento = experimento.replace('between(2015, 2019)', f'between({args.train_end+1}, {args.valid_end})')
+experimento = experimento.replace('<= 2019', f'<= {args.valid_end}')
+experimento = experimento.replace('[2005,2014]', f'[2005,{args.train_end}]').replace('[2015,2019]', f'[{args.train_end+1},{args.valid_end}]')
+experimento = experimento.replace('"climatologia_hasta": 2014', f'"climatologia_hasta": {args.train_end}').replace('"ultimo_anio_datos": 2019', f'"ultimo_anio_datos": {args.valid_end}')
+experimento = experimento.replace('"validacion_clima"', f'"validacion_clima/{CORTE}"')
 nb = nbformat.v4.new_notebook(cells=cells+[nbformat.v4.new_code_cell(experimento)])
 client = NotebookClient(nb, timeout=900, kernel_name='python3', resources={'metadata':{'path':str(ROOT)}})
 client.on_cell_start = lambda cell,cell_index,**kw: print(f'Celda {cell_index}',flush=True)
@@ -82,4 +96,4 @@ try:
     print('COMPLETADO',flush=True)
 finally:
     (ROOT/'output').mkdir(exist_ok=True)
-    nbformat.write(nb,ROOT/'output/validacion_clima_temporal.ipynb')
+    nbformat.write(nb,ROOT/f'output/validacion_clima_temporal_{CORTE}.ipynb')
