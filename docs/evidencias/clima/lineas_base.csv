@@ -1,0 +1,15 @@
+subconjunto,modelo,n,AUC_ROC,AUC_PR,precision,recall,VP,FP,FN,VN,exactitud,especificidad
+completo,Clase mayoritaria de entrenamiento,3876,0.5,0.672,,0.0,0.0,0.0,2606.0,1270.0,0.328,1.0
+completo,Siempre brote (referencia constante),3876,0.5,0.672,0.672,1.0,2606.0,1270.0,0.0,0.0,0.672,0.0
+completo,Persistencia (brote_actual),3876,0.886,0.942,0.968,0.828,2157.0,72.0,449.0,1198.0,0.866,0.943
+completo,Casos actuales sin modelo (log_casos),3876,0.855,0.919,,,,,,,,
+completo,Logística: solo historial de casos,3876,0.928,0.964,0.796,0.955,2490.0,637.0,116.0,633.0,0.806,0.498
+completo,Logística: casos + clima (LÍNEA BASE),3876,0.922,0.962,0.782,0.958,2496.0,695.0,110.0,575.0,0.792,0.453
+completo,Logística: solo clima,3876,0.577,0.745,0.689,0.527,1373.0,621.0,1233.0,649.0,0.522,0.511
+sin brote actual,Clase mayoritaria de entrenamiento,1647,0.5,0.273,,0.0,0.0,0.0,449.0,1198.0,0.727,1.0
+sin brote actual,Siempre brote (referencia constante),1647,0.5,0.273,0.273,1.0,449.0,1198.0,0.0,0.0,0.273,0.0
+sin brote actual,Persistencia (brote_actual),1647,0.5,0.273,,0.0,0.0,0.0,449.0,1198.0,0.727,1.0
+sin brote actual,Casos actuales sin modelo (log_casos),1647,0.704,0.441,,,,,,,,
+sin brote actual,Logística: solo historial de casos,1647,0.71,0.442,0.371,0.742,333.0,565.0,116.0,633.0,0.587,0.528
+sin brote actual,Logística: casos + clima (LÍNEA BASE),1647,0.689,0.432,0.352,0.755,339.0,623.0,110.0,575.0,0.555,0.48
+sin brote actual,Logística: solo clima,1647,0.518,0.266,0.261,0.457,205.0,581.0,244.0,617.0,0.499,0.515

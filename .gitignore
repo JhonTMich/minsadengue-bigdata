@@ -11,3 +11,4 @@ Thumbs.db
 .env
 .ipynb_checkpoints/
 **/.ipynb_checkpoints/
+output/

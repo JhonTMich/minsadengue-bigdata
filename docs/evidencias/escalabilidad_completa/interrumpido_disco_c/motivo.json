@@ -1,0 +1,5 @@
+{
+  "estado": "interrumpido_preventivamente",
+  "motivo": "C: con 5.3 GiB libres; temporales Spark ubicados en el disco de Docker. Detenido antes de Silver para no agotar el host. No fue timeout ni OOM.",
+  "correccion": "spark.local.dir y SPARK_LOCAL_DIRS en el volumen E: del proyecto"
+}
