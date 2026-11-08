@@ -1,0 +1,25 @@
+variable,formula,disponibilidad
+cod_dep,StringIndexer + OneHotEncoder; ajustados en train,Conocido en t
+log_casos,log(1+casos_t),Casos notificados disponibles en t
+log_casos_l1,log(1+casos_{t-1}),Semana anterior
+brote_actual,casos_t > Q3 de misma semana en cinco años previos y casos_t >=5,Hasta t
+estacion_sin,sin(2*pi*(dia_del_anio(fecha)-1)/365.2425),Calendario conocido
+estacion_cos,cos(2*pi*(dia_del_anio(fecha)-1)/365.2425),Calendario conocido
+temp_media_0_3,Media de temp_media entre t-3 y t+0; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+temp_media_4_7,Media de temp_media entre t-7 y t-4; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+temp_media_8_11,Media de temp_media entre t-11 y t-8; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+hum_media_0_3,Media de hum_media entre t-3 y t+0; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+hum_media_4_7,Media de hum_media entre t-7 y t-4; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+hum_media_8_11,Media de hum_media entre t-11 y t-8; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+precip_total_0_3,Media de precip_total entre t-3 y t+0; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+precip_total_4_7,Media de precip_total entre t-7 y t-4; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+precip_total_8_11,Media de precip_total entre t-11 y t-8; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_temp_0_3,Media de anom_temp entre t-3 y t+0; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_temp_4_7,Media de anom_temp entre t-7 y t-4; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_temp_8_11,Media de anom_temp entre t-11 y t-8; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_hum_0_3,Media de anom_hum entre t-3 y t+0; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_hum_4_7,Media de anom_hum entre t-7 y t-4; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_hum_8_11,Media de anom_hum entre t-11 y t-8; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_prec_0_3,Media de anom_prec entre t-3 y t+0; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_prec_4_7,Media de anom_prec entre t-7 y t-4; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
+anom_prec_8_11,Media de anom_prec entre t-11 y t-8; cuatro valores válidos. Anomalías respecto a climatología de train.,Hasta t; no incluye clima futuro
