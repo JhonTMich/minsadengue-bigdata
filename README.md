@@ -63,8 +63,6 @@ flowchart LR
 | Tablero | — | QuickSight o Streamlit sobre Athena |
 | Desarrollo | JupyterLab en Docker | Se mantiene en local |
 
-El diseño completo de la Ruta B, con diagramas, seguridad, costo estimado y requisitos, está en [diagrama_ruta_b.md](diagrama_ruta_b.md). La alternativa on-premise (HDFS y YARN) se conserva como respaldo en [diagrama.md](diagrama.md).
-
 | Capa | Ruta bajo `data/` | Contrato |
 |---|---|---|
 | Raw | `raw/` | CSV dengue y respuestas originales NASA; no se modifican en el pipeline |
@@ -105,7 +103,7 @@ El modelo requiere Gold; no existe actualmente lectura alternativa de una muestr
 
 ### Despliegue en AWS (Ruta B, en preparación)
 
-Todavía no hay ejecución en la nube. Los requisitos previstos son una cuenta de AWS (Learner Lab de AWS Academy o cuenta propia con alerta de presupuesto), AWS CLI con credenciales temporales fuera del repositorio, un bucket S3 privado y roles de IAM para EMR. Los pasos de despliegue y las evidencias se agregarán a esta sección cuando el pipeline se ejecute en EMR. Ver [diagrama_ruta_b.md](diagrama_ruta_b.md).
+Todavía no hay ejecución en la nube. Los requisitos previstos son una cuenta de AWS (Learner Lab de AWS Academy o cuenta propia con alerta de presupuesto), AWS CLI con credenciales temporales fuera del repositorio, un bucket S3 privado y roles de IAM para EMR. Los pasos de despliegue y las evidencias se agregarán a esta sección cuando el pipeline se ejecute en EMR. El código del despliegue está en la carpeta `nube/`.
 
 ### Ejecuciones automáticas y evidencias
 
