@@ -1,6 +1,7 @@
 # Predicción de brotes de dengue en Perú con datos epidemiológicos y climáticos
 
-Proyecto académico de Big Data y Analítica de Datos, Ingeniería de Sistemas e Inteligencia Artificial, Universidad Privada Antenor Orrego, periodo 2026-20. Grupo 13. Docente: Ing. Armando Javier Caballero Alvarado.
+Proyecto académico de Big Data y Analítica de Datos, Ingeniería de Computación y Sistemas, Universidad Privada Antenor Orrego, periodo 2026-20. Grupo 13. 
+Docente: Ing. Armando Javier Caballero Alvarado.
 
 **Resultado actual:** el pipeline funciona y la logística obtiene AUC-ROC 0.922 con casos y clima, pero el clima no mejora al modelo de casos solos (0.928). Al evaluar únicamente semanas sin brote vigente, el AUC baja a 0.689 con clima frente a 0.710 con casos solos. El objetivo predictivo de anticipación todavía requiere mejoras; no se presenta el AUC global como prueba suficiente de alerta temprana.
 
@@ -11,7 +12,7 @@ Proyecto académico de Big Data y Analítica de Datos, Ingeniería de Sistemas e
 | Arenas Arriaga, Johan Michael | Coordinación, análisis y modelado |
 | Campos Acevedo, Gianfranco | Ingeniería de datos, calidad y documentación |
 
-Ruta A: ejecución on-premise local con Docker y Spark. Se procesa el registro nacional 2000–2024 y se modelan 19 departamentos con al menos 1 000 registros en el periodo, que concentran aproximadamente el 99.93 % de casos. El informe declara un acuerdo de alcance con el docente en Semana 2; su respaldo documental sigue pendiente de incorporar. Los roles dobles y la cantidad de commits no sustituyen evidencia de planificación, contribuciones y decisiones.
+Ruta de despliegue: **Ruta B (nube, AWS)**. El parcial se presentó como Ruta A (on-premise local con Docker y Spark); el cambio de ruta está en curso y debe quedar aprobado por el docente y registrado en la bitácora del informe. Mientras tanto, todos los resultados de este README provienen de la ejecución local. Se procesa el registro nacional 2000–2024 y se modelan 19 departamentos con al menos 1 000 registros en el periodo, que concentran aproximadamente el 99.93 % de casos. El informe declara un acuerdo de alcance con el docente en Semana 2; su respaldo documental sigue pendiente de incorporar. Los roles dobles y la cantidad de commits no sustituyen evidencia de planificación, contribuciones y decisiones.
 
 Es un prototipo académico, no un servicio oficial del MINSA ni una herramienta validada para decisiones sanitarias.
 
@@ -32,19 +33,35 @@ Dengue: [Plataforma Nacional de Datos Abiertos](https://www.datosabiertos.gob.pe
 
 La auditoría de las respuestas climáticas encontró cero valores de relleno `-999`, pero solo 17 series distintas: Amazonas/Cajamarca y Lima/Callao tienen series exactamente iguales. Un punto por departamento no representa todos sus focos; la resolución espacial limita la señal. No se demuestra que estas limitaciones expliquen por sí solas el resultado del modelo.
 
-## Arquitectura implementada
+## Arquitectura
+
+La arquitectura lógica es medallion (Raw, Bronze, Silver y Gold) y no cambia entre rutas. El modelo se entrena con Spark MLlib.
 
 ```mermaid
 flowchart LR
-    A[CSV dengue MINSA] --> R[Raw local]
+    A[CSV dengue MINSA] --> R[Raw]
     B[API NASA POWER] --> R
     R --> BR[Bronze: texto y linaje]
     BR --> SD[Silver dengue: tipos y calidad]
     BR --> SC[Silver clima: agregado semanal]
     SD --> G[Gold: departamento por semana]
     SC --> G
-    G --> M[Variables, exploración y modelos]
+    G --> M[Spark MLlib: exploración y modelos]
+    M --> AL[Gold: alertas]
+    G --> Q[Catálogo y consulta SQL]
+    AL --> Q
+    Q --> T[Tablero]
 ```
+
+| Pieza | Implementado hoy (local) | Ruta B objetivo (AWS) |
+|---|---|---|
+| Almacenamiento | Disco local montado en Docker | Amazon S3, privado y cifrado |
+| Procesamiento | Spark 3.5 en modo `local[2]` | Spark en un clúster Amazon EMR |
+| Modelo | Spark MLlib | Spark MLlib en EMR, modelos versionados en S3 |
+| Catálogo | — | AWS Glue Data Catalog |
+| Consulta | — | Amazon Athena |
+| Tablero | — | QuickSight o Streamlit sobre Athena |
+| Desarrollo | JupyterLab en Docker | Se mantiene en local |
 
 | Capa | Ruta bajo `data/` | Contrato |
 |---|---|---|
@@ -55,7 +72,7 @@ flowchart LR
 
 Gold contiene exactamente `cod_dep`, `departamento`, `ano`, `semana`, `casos`, `temp_media`, `hum_media`, `precip_total`. Su clave es departamento/año/semana. En la ejecución validada hay **24 776 filas**. El notebook `modeloBase` depende de este esquema, no de registros individuales.
 
-El almacenamiento real es disco local montado en Docker: no se implementa HDFS, catálogo gestionado ni clúster multinodo. Spark se ejecuta en modo local. La guía describe Ruta A con HDFS y YARN: esos componentes siguen pendientes en el entorno actual. La reconstrucción desde Raw permite recuperar datos, pero no acredita alta disponibilidad. Migrar a S3/HDFS requiere adaptar rutas, credenciales, conectores y accesos; no basta con afirmar sustitución sin validación. Parquet y el esquema Gold reducen el acoplamiento entre componentes.
+Hoy el almacenamiento es disco local montado en Docker y Spark se ejecuta en modo local: todavía no hay S3, EMR, catálogo gestionado ni clúster multinodo. La reconstrucción desde Raw permite recuperar datos, pero no acredita alta disponibilidad. Migrar a S3 y EMR requiere adaptar rutas, sesión de Spark, credenciales y accesos; no basta con afirmar la sustitución sin validarla. Parquet y el esquema Gold reducen el acoplamiento entre componentes.
 
 ### Calidad y privacidad
 
@@ -70,8 +87,8 @@ Los datos individuales permanecen fuera de Git; Silver descarta localidad, local
 Requisitos: Docker Desktop/Engine con Compose v2, Python 3.10+ en el host (o `uv` para los comandos del supervisor), aproximadamente 8 GB de RAM disponibles para el entorno, espacio libre para originales y capas, e internet en la primera descarga climática. El crecimiento de réplicas consume espacio adicional.
 
 ```bash
-git clone https://github.com/JhonTMich/geresa-bigdata.git
-cd geresa-bigdata
+git clone https://github.com/JhonTMich/minsadengue-bigdata.git
+cd minsadengue-bigdata
 docker compose up -d
 docker compose logs pyspark-notebook
 ```
@@ -83,6 +100,10 @@ Jupyter: `http://localhost:8888`. Spark UI: `http://localhost:4040` mientras exi
 3. Ejecutar `notebooks/modeloBase.ipynb` completo después de obtener Gold.
 
 El modelo requiere Gold; no existe actualmente lectura alternativa de una muestra CSV implementada. Las capas se sobrescriben: no ejecutar mediciones del pipeline en paralelo ni mientras se consulta la misma salida.
+
+### Despliegue en AWS (Ruta B, en preparación)
+
+Todavía no hay ejecución en la nube. Los requisitos previstos son una cuenta de AWS (Learner Lab de AWS Academy o cuenta propia con alerta de presupuesto), AWS CLI con credenciales temporales fuera del repositorio, un bucket S3 privado y roles de IAM para EMR. Los pasos de despliegue y las evidencias se agregarán a esta sección cuando el pipeline se ejecute en EMR. El código del despliegue está en la carpeta `nube/`.
 
 ### Ejecuciones automáticas y evidencias
 
@@ -261,4 +282,4 @@ Las principales limitaciones son la representación climática mediante un punto
 
 Las pruebas de escalabilidad utilizan registros replicados, con ventajas de compresión y una salida Gold de tamaño constante. Sus resultados describen la carga local evaluada; no demuestran escalabilidad multinodo ni identifican un punto de quiebre exacto. Tampoco se han cuantificado costos operativos o consumo energético.
 
-El trabajo pendiente comprende validar la estabilidad temporal y regional, evaluar representaciones climáticas alternativas y seleccionar el umbral de alerta considerando falsas alarmas. Las nuevas decisiones deben ajustarse mediante validación temporal; como el periodo 2021–2024 ya fue inspeccionado, la confirmación de generalización requiere una evaluación independiente. También quedan pendientes la incorporación de HDFS/YARN para la Ruta A, la estimación de costos y el desarrollo de la capa de consumo.
+El trabajo pendiente comprende validar la estabilidad temporal y regional, evaluar representaciones climáticas alternativas y seleccionar el umbral de alerta considerando falsas alarmas. Las nuevas decisiones deben ajustarse mediante validación temporal; como el periodo 2021–2024 ya fue inspeccionado, la confirmación de generalización requiere una evaluación independiente. También quedan pendientes el despliegue en AWS para la Ruta B (S3, EMR, Glue Data Catalog y Athena), el reporte del costo real frente al estimado, una prueba de escalabilidad horizontal con distinto número de nodos y el desarrollo de la capa de consumo.
