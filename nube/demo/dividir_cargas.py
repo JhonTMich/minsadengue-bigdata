@@ -1,0 +1,67 @@
+import argparse
+from datetime import date, timedelta
+from pathlib import Path
+
+
+def anio_dengue(campos, indice):
+    return int(campos[indice])
+
+
+def anio_clima(campos, indice):
+    texto = campos[indice].decode()
+    dia = date(int(texto[:4]), int(texto[4:6]), int(texto[6:8]))
+    # El miércoles de la semana (domingo a sábado) define el año epidemiológico
+    miercoles = dia + timedelta(days=3 - (dia.weekday() + 1) % 7)
+    return miercoles.year
+
+
+FUENTES = {
+    "dengue": ("vigilancia_dengue", b";", "ano", anio_dengue),
+    "clima": ("clima_nasa_power", b",", "fecha", anio_clima),
+}
+
+
+def dividir(origen, destino_dir, fuente, incluir):
+    prefijo, sep, columna, obtener_anio = FUENTES[fuente]
+    destino_dir.mkdir(parents=True, exist_ok=True)
+    temporal = destino_dir / f"{prefijo}.parcial"
+    anios = set()
+    with origen.open("rb") as entrada, temporal.open("wb") as salida:
+        cabecera = entrada.readline()
+        nombres = cabecera.lstrip(b"\xef\xbb\xbf").rstrip(b"\r\n").split(sep)
+        indice = nombres.index(columna.encode())
+        salida.write(cabecera)
+        for linea in entrada:
+            anio = obtener_anio(linea.rstrip(b"\r\n").split(sep), indice)
+            if incluir(anio):
+                salida.write(linea)
+                anios.add(anio)
+    if not anios:
+        temporal.unlink()
+        raise SystemExit(f"{origen.name}: ninguna fila para esta parte")
+    final = destino_dir / f"{prefijo}_{min(anios)}_{max(anios)}.csv"
+    temporal.replace(final)
+    return final, len(anios)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Divide las fuentes en una carga histórica y una carga nueva")
+    parser.add_argument("--base", required=True)
+    parser.add_argument("--parte", choices=["historico", "nueva"], required=True)
+    parser.add_argument("--fecha-carga", required=True)
+    parser.add_argument("--anio-corte", type=int, default=2023)
+    parser.add_argument("--dengue", required=True)
+    parser.add_argument("--clima", required=True)
+    args = parser.parse_args()
+
+    date.fromisoformat(args.fecha_carga)
+    corte = args.anio_corte
+    incluir = (lambda a: a <= corte) if args.parte == "historico" else (lambda a: a > corte)
+    for fuente, origen in [("dengue", args.dengue), ("clima", args.clima)]:
+        destino = Path(args.base) / "raw" / fuente / f"fecha_carga={args.fecha_carga}"
+        archivo, n_anios = dividir(Path(origen), destino, fuente, incluir)
+        print(f"{fuente}: {archivo} ({n_anios} años)")
+
+
+if __name__ == "__main__":
+    main()
