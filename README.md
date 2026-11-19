@@ -35,32 +35,40 @@ La auditoría de las respuestas climáticas encontró cero valores de relleno `-
 
 ## Arquitectura
 
-La arquitectura lógica es medallion (Raw, Bronze, Silver y Gold) y no cambia entre rutas. El modelo se entrena con Spark MLlib.
+La arquitectura lógica es medallion (Raw, Bronze, Silver y Gold) y no cambia entre rutas. En la Ruta B el pipeline es incremental: cada carga nueva se procesa sin perder las anteriores ni reprocesar el histórico. El modelo se entrena y puntúa con Spark MLlib.
 
 ```mermaid
 flowchart LR
-    A[CSV dengue MINSA] --> R[Raw]
+    A[CSV dengue MINSA] --> R[Raw: una carpeta por carga]
     B[API NASA POWER] --> R
-    R --> BR[Bronze: texto y linaje]
-    BR --> SD[Silver dengue: tipos y calidad]
-    BR --> SC[Silver clima: agregado semanal]
-    SD --> G[Gold: departamento por semana]
+    MF[Manifiesto de cargas] -.-> BR
+    R --> BR[Bronze: texto y linaje, solo lo nuevo]
+    BR --> SD[Silver dengue: tipos y calidad, por año]
+    BR --> SC[Silver clima: agregado semanal, por año]
+    SD --> G[Gold: panel departamento por semana]
     SC --> G
-    G --> M[Spark MLlib: exploración y modelos]
-    M --> AL[Gold: alertas]
-    G --> Q[Catálogo y consulta SQL]
+    DIM[Gold: dimensiones de departamentos y semanas] --- G
+    G --> TR[MLlib: entrenamiento]
+    TR --> MV[Modelo versionado]
+    MV --> SCO[MLlib: puntuación de semanas nuevas]
+    G --> SCO
+    SCO --> AL[Gold: alertas]
+    G --> Q[Glue Data Catalog y Athena: vistas de indicadores]
     AL --> Q
-    Q --> T[Tablero]
+    DIM --> Q
+    Q --> T[Power BI]
 ```
 
 | Pieza | Implementado hoy (local) | Ruta B objetivo (AWS) |
 |---|---|---|
-| Almacenamiento | Disco local montado en Docker | Amazon S3, privado y cifrado |
+| Almacenamiento | Disco local montado en Docker | Amazon S3, privado, cifrado y versionado |
+| Carga | Completa en cada corrida | Incremental: manifiesto de cargas y reescritura solo de los años afectados |
 | Procesamiento | Spark 3.5 en modo `local[2]` | Spark en un clúster Amazon EMR |
-| Modelo | Spark MLlib | Spark MLlib en EMR, modelos versionados en S3 |
+| Modelo | Spark MLlib, entrenamiento y evaluación | Entrenamiento y puntuación separados, modelos versionados en S3 |
+| Tablas analíticas | Panel Gold | Panel, alertas y dimensiones en Gold, particionados por año |
 | Catálogo | — | AWS Glue Data Catalog |
-| Consulta | — | Amazon Athena |
-| Tablero | — | QuickSight o Streamlit sobre Athena |
+| Consulta | — | Amazon Athena, vistas de indicadores |
+| Tablero | — | Power BI Desktop conectado a Athena |
 | Desarrollo | JupyterLab en Docker | Se mantiene en local |
 
 | Capa | Ruta bajo `data/` | Contrato |
@@ -101,9 +109,34 @@ Jupyter: `http://localhost:8888`. Spark UI: `http://localhost:4040` mientras exi
 
 El modelo requiere Gold; no existe actualmente lectura alternativa de una muestra CSV implementada. Las capas se sobrescriben: no ejecutar mediciones del pipeline en paralelo ni mientras se consulta la misma salida.
 
+### Pipeline incremental (Ruta B, ejecución local)
+
+Los pasos de `nube/pipeline/` construyen Bronze, Silver y Gold de forma incremental: cada carga va en `raw/<fuente>/fecha_carga=AAAA-MM-DD/`, un manifiesto en `control/` registra lo procesado y solo se reescriben los años afectados (Silver y Gold particionados por año). El mismo código corre en EMR cambiando `--base` por `s3://<bucket>/datalake`.
+
+Para la demostración, `nube/demo/dividir_cargas.py` separa las fuentes en una carga histórica (hasta 2023) y una carga nueva (2024). En local se usa `data/_nube`, ignorada por Git, sin tocar las capas canónicas.
+
+```bash
+docker compose exec -T -w /home/jovyan/work pyspark-notebook python nube/demo/dividir_cargas.py --base data/_nube --parte historico --fecha-carga 2026-11-17 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
+docker compose exec -T -e PYTHONPATH=/home/jovyan/work/nube -w /home/jovyan/work pyspark-notebook spark-submit --master "local[2]" --driver-memory 3g nube/pipeline/paso_01_bronze.py --base /home/jovyan/work/data/_nube
+docker compose exec -T -e PYTHONPATH=/home/jovyan/work/nube -w /home/jovyan/work pyspark-notebook spark-submit --master "local[2]" --driver-memory 3g nube/pipeline/paso_02_silver.py --base /home/jovyan/work/data/_nube
+docker compose exec -T -e PYTHONPATH=/home/jovyan/work/nube -w /home/jovyan/work pyspark-notebook spark-submit --master "local[2]" --driver-memory 3g nube/pipeline/paso_03_gold.py --base /home/jovyan/work/data/_nube
+```
+
+La carga nueva se agrega repitiendo el primer comando con `--parte nueva --fecha-carga 2026-11-18` y luego los tres pasos. En Git Bash, anteponer `MSYS_NO_PATHCONV=1` para que no convierta las rutas del contenedor.
+
+Validación local (18/11/2026), con Spark 3.5.0 en `local[2]`:
+
+| Escenario | Resultado |
+|---|---|
+| Carga histórica 2000–2023 | Gold con 23 788 filas (19 departamentos × 1 252 semanas) |
+| Carga nueva 2024 | Solo se reescribieron las particiones 2024 de Silver y Gold, y la dimensión de semanas |
+| Corrida sin datos nuevos | Ningún paso procesó ni reescribió datos |
+| Republicación del archivo completo 2000–2024 | Sin diferencias detectadas: Silver y Gold no se reescribieron; solo se registraron sus rechazados |
+| Comparación con el Gold canónico | 24 776 filas, 1 028 639 casos y 0 diferencias en casos y clima |
+
 ### Despliegue en AWS (Ruta B, en preparación)
 
-Todavía no hay ejecución en la nube. Los requisitos previstos son una cuenta de AWS (Learner Lab de AWS Academy o cuenta propia con alerta de presupuesto), AWS CLI con credenciales temporales fuera del repositorio, un bucket S3 privado y roles de IAM para EMR. Los pasos de despliegue y las evidencias se agregarán a esta sección cuando el pipeline se ejecute en EMR. El código del despliegue está en la carpeta `nube/`.
+Todavía no hay ejecución en la nube. Los requisitos previstos son la cuenta de AWS Academy de la UPAO (Learner Lab), AWS CLI con credenciales temporales fuera del repositorio, un bucket S3 privado y versionado, los roles para EMR que provee el laboratorio y Power BI Desktop con el driver ODBC de Athena. Los pasos de despliegue y las evidencias se agregarán a esta sección cuando el pipeline se ejecute en EMR. El código del despliegue está en la carpeta `nube/`.
 
 ### Ejecuciones automáticas y evidencias
 
