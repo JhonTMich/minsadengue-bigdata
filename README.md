@@ -138,6 +138,8 @@ Validación local (18/11/2026), con Spark 3.5.0 en `local[2]`:
 
 Todavía no hay ejecución en la nube. Los requisitos previstos son la cuenta de AWS Academy de la UPAO (Learner Lab), AWS CLI con credenciales temporales fuera del repositorio, un bucket S3 privado y versionado, los roles para EMR que provee el laboratorio y Power BI Desktop con el driver ODBC de Athena. Los pasos de despliegue y las evidencias se agregarán a esta sección cuando el pipeline se ejecute en EMR. El código del despliegue está en la carpeta `nube/`.
 
+El punto 2 dispone de un [ejecutor y guía para Learner Lab](nube/infra/README.md): crea/configura S3, sube una carga y el paquete Python, crea EMR, envía los pasos Bronze → Silver → Gold en YARN y supervisa su ejecución con solicitud de apagado. Incluye `--dry-run` sin llamadas AWS y pruebas locales. Su ejecución real y las evidencias cloud siguen pendientes de configurar el acceso al laboratorio; no se declaran como resultados medidos. Se conserva el alcance validado por años completos: histórico 2000–2023 y carga nueva de 2024.
+
 ### Ejecuciones automáticas y evidencias
 
 ```bash
