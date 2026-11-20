@@ -1,48 +1,96 @@
-# Ejecutar los pasos 1 a 3 en AWS Academy Learner Lab
+# Ejecutar los pasos 1 a 3 en una cuenta AWS propia
 
 Estos comandos cubren el punto 2 del proyecto: bucket S3 privado, cifrado y
 versionado; clúster EMR; Bronze, Silver y Gold en AWS. Reutilizan el pipeline local
 sin modificar sus transformaciones. No implementan modelo, Athena ni Power BI.
 
 Estado: implementación probada sin recursos AWS. Para cerrar el punto 2 faltan
-configurar el laboratorio, ejecutar y conservar evidencias reales.
+configurar la cuenta, ejecutar y conservar evidencias reales. No se dispone de
+Learner Lab universitario; el proyecto usará una cuenta propia.
 
 ## 1. Acceso y configuración
 
-Learner Lab es el laboratorio de AWS Academy que habilita la universidad. Usa AWS
-real, consume el saldo educativo disponible y tiene restricciones propias de
-servicios, roles, regiones e instancias. AWS Emulator es para pruebas locales y no
-acredita la ejecución de EMR en la nube exigida por este entregable.
+Se desarrolla y prueba con Spark local. EMR se crea solo durante las ejecuciones
+reales y se termina al finalizar. S3 conserva las capas, modelos y evidencias;
+Athena/Power BI podrán consultar Gold sin mantener el clúster encendido. AWS
+Emulator es opcional para probar APIs; no acredita ejecución cloud del pipeline.
 
-1. Entrar al curso de AWS Academy, abrir Learner Lab y usar **Start Lab**.
-2. Revisar saldo, tiempo de sesión y servicios permitidos en las instrucciones del
-   laboratorio. Confirmar EMR, tipos de instancia, región y roles habilitados.
-3. Configurar AWS CLI v2 con las credenciales temporales de **AWS Details**,
-   incluido el token de sesión. Guardarlas fuera del repositorio, en el perfil
-   local de AWS o en las variables de la terminal. No compartirlas por chat ni
-   agregarlas a `entorno.env`. Renovarlas cuando caduque la sesión.
+1. Crear o elegir una sola cuenta AWS para el proyecto. Revisar créditos, plan de
+   cuenta y acceso a EMR; no asumir que los servicios están cubiertos por Free Tier.
+2. Configurar alertas de AWS Budgets y revisar cuotas de EC2/EMR. Una alerta no
+   bloquea automáticamente los cargos. La cuenta necesita un medio de pago válido
+   si así lo exige su plan y debe poder utilizar EMR.
+3. Configurar un perfil de AWS CLI v2 siguiendo la [guía oficial de autenticación](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-authentication.html).
+   Usar una identidad con permisos para IAM, VPC, S3, EMR, `iam:PassRole` y
+   `pricing:GetProducts`. Guardar las credenciales fuera del repositorio y no
+   compartirlas por chat. El perfil se selecciona con `AWS_PROFILE` en la terminal.
 4. Instalar Python 3.9+ y AWS CLI v2 en el equipo que ejecutará los comandos. En
    Windows se puede usar `uv run python` si no se dispone de Python en el PATH.
 5. Copiar `nube/config/entorno.example.env` a `nube/config/entorno.env` y completar:
 
 | Variable | Cómo elegirla |
 |---|---|
-| `EXPECTED_ACCOUNT_ID` | Los 12 dígitos de la cuenta del laboratorio |
-| `AWS_REGION` | Región habilitada, misma para bucket y clúster |
+| `EXPECTED_ACCOUNT_ID` | Los 12 dígitos de la cuenta propia |
+| `AWS_REGION` | Misma para bucket y clúster; comenzar con `us-east-1` |
 | `BUCKET` | Nombre único de un bucket dedicado al proyecto |
-| `ROL_SERVICIO_EMR` | Rol de servicio EMR ya permitido por el laboratorio |
-| `PERFIL_INSTANCIA_EMR` | Perfil de instancia EC2 para EMR ya permitido |
-| `SUBNET_ID` | Subred disponible con conectividad para EMR y S3 |
-| `EMR_RELEASE` | Versión habilitada; la plantilla propone `emr-7.1.0`, con Spark 3.5.0 |
-| `INSTANCIA` | Tipo permitido; verificar `m5.xlarge` antes de crear |
+| `ROL_SERVICIO_EMR` | `MinsaDengueEMRService`, creado por `preparar` |
+| `PERFIL_INSTANCIA_EMR` | `MinsaDengueEMREC2`, rol y perfil del mismo nombre |
+| `SUBNET_ID` | Vacío al inicio; `preparar` crea una subred dedicada |
+| `EMR_RELEASE` | La plantilla propone `emr-7.1.0`, con Spark 3.5.0 |
+| `INSTANCIA` | `m5.xlarge`; comprobar disponibilidad y cuotas |
 | `NODOS_CORE` | `1`: un primario y un core, dos nodos totales |
 | `IDLE_TIMEOUT` | Segundos de inactividad para autoapagado; predeterminado `900` |
 
-Los scripts no crean roles IAM ni redes, ni necesitan una clave SSH. Usar los
-recursos autorizados del laboratorio. La comprobación inicial valida identidad,
-subred disponible y release; no garantiza permisos efectivos de los roles ni
-conectividad de la subred. Si falla, conservar el error y revisar la configuración
-del laboratorio antes de crear recursos adicionales.
+No se necesita una clave SSH. El comando `preparar` crea dos roles IAM y el perfil
+EC2, una VPC dedicada con DNS, una subred pública, una tabla de rutas y un Internet
+Gateway. No crea NAT Gateway, instancias ni clústeres. La VPC y subred llevan las
+etiquetas requeridas por `AmazonEMRServicePolicy_v2`. Los permisos de datos del rol
+EC2 se limitan al bucket del proyecto y no incluyen permisos administrativos.
+
+Revisar primero la simulación y después ejecutar con las credenciales configuradas:
+
+```bash
+python nube/infra/desplegar.py preparar --dry-run
+python nube/infra/desplegar.py preparar
+```
+
+Se genera `output/aws/entorno.preparado.env`, sin credenciales, con `SUBNET_ID`.
+Copiarlo a `nube/config/entorno.env` para continuar (PowerShell:
+`Copy-Item output/aws/entorno.preparado.env nube/config/entorno.env`). Ambos archivos
+están fuera de Git. Conservar `output/aws/estado.json`: permite retomar la preparación
+y reutilizar sus recursos. No ejecutar preparaciones en paralelo.
+
+Los roles existentes solo se reutilizan si pertenecen al mismo proyecto y bucket.
+La preparación rechaza una subred ajena proporcionada en el archivo inicial.
+Si falla una llamada de creación de forma ambigua, comprobar la consola antes de
+reintentar. IAM puede tardar en propagar el perfil; reintentar la comprobación tras
+unos minutos si AWS todavía no lo reconoce. No crear otro clúster para resolverlo.
+
+### Estimar antes de crear el clúster
+
+```bash
+python nube/infra/desplegar.py estimar --horas 1
+```
+
+Consulta AWS Price List Query API y guarda `output/aws/estimacion.json` con fecha,
+región, instancia y SKU de las tarifas. Compara 2 y 4 nodos totales para la misma
+duración. Incluye EC2 Linux On-Demand, recargo EMR, una IPv4 por nodo y 47 GiB gp3
+por nodo (15 raíz + 32 datos). El despliegue configura explícitamente esos discos.
+EBS se aproxima con 730 horas/mes. Las horas deben incluir arranque, trabajo, espera
+y apagado. S3, solicitudes/versiones, CloudWatch, consultas, transferencias e
+impuestos se muestran como excluidos. Créditos y descuentos tampoco se descuentan.
+
+`cluster --horas 1 --max-usd 2` vuelve a estimar y no crea EMR si el total parcial
+supera USD 2. Este valor es un umbral de revisión configurable, **no un tope de
+facturación** ni una garantía de que la sesión dure una hora. La supervisión y el
+autoapagado continúan siendo necesarios. No se sustituyen precios faltantes por
+cero. Si la cuenta no permite consultar precios, revisar ese permiso antes de crear
+el clúster o usar una cotización revisada con `--tarifas archivo.json`.
+
+Para recalcular sin llamadas AWS se puede reutilizar una cotización guardada:
+`python nube/infra/desplegar.py estimar --tarifas output/aws/estimacion.json --dry-run`.
+Verificar su fecha antes de usarla para crear recursos. La simulación sin tarifas
+solo imprime las consultas previstas; no inventa un importe.
 
 ## 2. Preparar una carga local
 
@@ -60,7 +108,7 @@ demostración; no representa la fecha de publicación de la fuente.
 ## 3. Revisar y ejecutar
 
 En Windows, sustituir `python` por `uv run python` en estos comandos si corresponde.
-En la terminal Linux del laboratorio puede usarse `python3`. Primero revisar las
+En una terminal Linux puede usarse `python3`. Primero revisar las
 operaciones sin invocar AWS:
 
 ```bash
@@ -74,13 +122,14 @@ python nube/infra/desplegar.py lanzar --dry-run
 también verifica archivos y genera un ZIP local. No registra estado ni demuestra
 que los permisos AWS sean suficientes.
 
-Con el laboratorio activo y las credenciales configuradas:
+Con la cuenta propia preparada y las credenciales configuradas:
 
 ```bash
 python nube/infra/desplegar.py comprobar
+python nube/infra/desplegar.py estimar --horas 1
 python nube/infra/desplegar.py bucket
 python nube/infra/desplegar.py subir --fecha-carga 2026-11-17
-python nube/infra/desplegar.py cluster
+python nube/infra/desplegar.py cluster --horas 1 --max-usd 2
 python nube/infra/desplegar.py lanzar
 python nube/infra/desplegar.py esperar --timeout 3600
 python nube/infra/desplegar.py estado
@@ -109,7 +158,7 @@ pasos también solicitan terminar EMR ante un fallo.
 La política de autoapagado por inactividad sirve como respaldo si se cierra el
 equipo. No es un límite total de duración ni un tope monetario. Si caducan las
 credenciales, renovar la sesión para poder consultar y apagar. Si se pierde toda
-conectividad, comprobar el clúster en la consola del laboratorio.
+conectividad, comprobar el clúster en la consola de AWS.
 
 ```bash
 python nube/infra/desplegar.py estado
@@ -119,8 +168,10 @@ python nube/infra/desplegar.py apagar
 El apagado es asíncrono: confirmar estado `TERMINATED` (o revisar
 `TERMINATED_WITH_ERRORS`) en la consola o con `estado`. No interpretar la solicitud
 como confirmación de apagado. No se eliminan bucket, datos ni logs; S3 puede seguir
-consumiendo saldo. Guardar capturas del saldo antes y después y consultar el costo
-real en las herramientas habilitadas por el laboratorio.
+generando cargos. Guardar la estimación y revisar el costo real en Billing/Cost
+Explorer cuando se actualice. Revisar volúmenes huérfanos y versiones S3 tras las
+pruebas; no borrar las evidencias necesarias para el informe. Los roles y la red se
+conservan para reutilizarlos en la siguiente sesión.
 
 Repetir `cluster` reutiliza el clúster activo del estado y evita crear otro.
 Repetir `lanzar` después de un envío se rechaza para evitar doble ejecución; usar
@@ -139,7 +190,7 @@ Después de completar el histórico y confirmar su apagado:
 ```bash
 python nube/demo/dividir_cargas.py --base data/_nube --parte nueva --fecha-carga 2026-11-18 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
 python nube/infra/desplegar.py subir --fecha-carga 2026-11-18
-python nube/infra/desplegar.py cluster
+python nube/infra/desplegar.py cluster --horas 1 --max-usd 2
 python nube/infra/desplegar.py lanzar
 python nube/infra/desplegar.py esperar --timeout 3600
 python nube/infra/desplegar.py estado
@@ -177,10 +228,13 @@ solo resultados agregados revisados, sin credenciales ni registros personales.
 - [Pasos Spark en EMR](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark-submit-step.html).
 - [Autoapagado y sus requisitos de permisos/red](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-auto-termination-policy.html).
 - [EMR 7.1.0 y versiones de aplicaciones](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-710-release.html).
+- [Rol EC2 de EMR y perfil del mismo nombre](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-iam-role-for-ec2.html).
+- [Permisos y etiquetas del rol de servicio](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonEMRServicePolicy_v2.html).
+- [AWS Price List Query API](https://docs.aws.amazon.com/cli/latest/reference/pricing/get-products.html).
 
 ```bash
 python -m unittest discover -s nube/infra -v
 ```
 
 Estas pruebas usan respuestas simuladas y archivos temporales. No acreditan
-compatibilidad efectiva con las restricciones de una cuenta Learner Lab concreta.
+permisos efectivos, cuotas, conectividad ni ejecución real en una cuenta AWS.

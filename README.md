@@ -136,9 +136,9 @@ Validación local (18/11/2026), con Spark 3.5.0 en `local[2]`:
 
 ### Despliegue en AWS (Ruta B, en preparación)
 
-Todavía no hay ejecución en la nube. Los requisitos previstos son la cuenta de AWS Academy de la UPAO (Learner Lab), AWS CLI con credenciales temporales fuera del repositorio, un bucket S3 privado y versionado, los roles para EMR que provee el laboratorio y Power BI Desktop con el driver ODBC de Athena. Los pasos de despliegue y las evidencias se agregarán a esta sección cuando el pipeline se ejecute en EMR. El código del despliegue está en la carpeta `nube/`.
+Todavía no hay ejecución en la nube. Se utilizará una cuenta AWS propia, pues no se dispone de Learner Lab universitario. Se requieren AWS CLI con credenciales fuera del repositorio, un bucket S3 privado y versionado, roles y red para EMR, y Power BI Desktop con el driver ODBC de Athena. El código del despliegue está en la carpeta `nube/`. El desarrollo permanece local y el clúster se crea solo durante las ejecuciones para reducir el gasto.
 
-El punto 2 dispone de un [ejecutor y guía para Learner Lab](nube/infra/README.md): crea/configura S3, sube una carga y el paquete Python, crea EMR, envía los pasos Bronze → Silver → Gold en YARN y supervisa su ejecución con solicitud de apagado. Incluye `--dry-run` sin llamadas AWS y pruebas locales. Su ejecución real y las evidencias cloud siguen pendientes de configurar el acceso al laboratorio; no se declaran como resultados medidos. Se conserva el alcance validado por años completos: histórico 2000–2023 y carga nueva de 2024.
+El punto 2 dispone de un [ejecutor y guía para cuenta propia](nube/infra/README.md): prepara roles y una VPC pública sin NAT Gateway, configura S3, sube datos/código y ejecuta Bronze → Silver → Gold en EMR/YARN con supervisión y solicitud de apagado. Incluye estimación de costos para 2 y 4 nodos usando AWS Pricing, revisión del costo parcial antes de crear el clúster, `--dry-run` y pruebas locales. La estimación no es un tope de facturación. Su ejecución real y las evidencias cloud siguen pendientes de configurar la cuenta; no se declaran como resultados medidos. Se conserva el alcance validado por años completos: histórico 2000–2023 y carga nueva de 2024.
 
 ### Ejecuciones automáticas y evidencias
 
