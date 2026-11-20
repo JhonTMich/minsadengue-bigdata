@@ -5,13 +5,16 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
 import time
-from datetime import date, datetime, timezone
 import zipfile
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+from costos import DATA_GIB, ROOT_GIB, estimar
+from errores import ErrorAWS
 
 ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = ROOT / "nube/pipeline"
@@ -19,11 +22,7 @@ FILES = ["__init__.py", "comun.py", "paso_01_bronze.py", "paso_02_silver.py", "p
 TERMINALES = {"TERMINATED", "TERMINATED_WITH_ERRORS"}
 
 
-class ErrorAWS(RuntimeError):
-    pass
-
-
-def cargar_config(path):
+def cargar_config(path, requiere_infra=True):
     config = {}
     permitidas = {"AWS_REGION", "EXPECTED_ACCOUNT_ID", "BUCKET", "EMR_RELEASE", "INSTANCIA",
                   "NODOS_CORE", "ROL_SERVICIO_EMR", "PERFIL_INSTANCIA_EMR", "SUBNET_ID",
@@ -36,7 +35,8 @@ def cargar_config(path):
         if not sep or clave not in permitidas:
             raise ValueError(f"Configuración inválida en línea {numero}; no guardar credenciales aquí.")
         config[clave] = valor.strip().strip('"\'')
-    for clave in permitidas - {"GLUE_DATABASE"}:
+    opcionales = {"GLUE_DATABASE"} if requiere_infra else {"GLUE_DATABASE", "SUBNET_ID"}
+    for clave in permitidas - opcionales:
         if not config.get(clave):
             raise ValueError(f"Completar {clave} en {path}.")
     if not re.fullmatch(r"\d{12}", config["EXPECTED_ACCOUNT_ID"]) or config["EXPECTED_ACCOUNT_ID"] == "000000000000":
@@ -45,8 +45,11 @@ def cargar_config(path):
         raise ValueError("Usar un nombre de bucket de 3 a 63 caracteres, sin puntos.")
     if not re.fullmatch(r"emr-\d+\.\d+\.\d+", config["EMR_RELEASE"]):
         raise ValueError("EMR_RELEASE debe ser una versión explícita, por ejemplo emr-7.1.0.")
-    if not re.fullmatch(r"subnet-[a-f0-9]+", config["SUBNET_ID"]):
+    if config.get("SUBNET_ID") and not re.fullmatch(r"subnet-[a-f0-9]+", config["SUBNET_ID"]):
         raise ValueError("SUBNET_ID inválida.")
+    for clave in ("ROL_SERVICIO_EMR", "PERFIL_INSTANCIA_EMR"):
+        if not re.fullmatch(r"[\w+=,.@-]{1,64}", config[clave]):
+            raise ValueError(f"{clave} debe contener el nombre del rol/perfil, sin ARN ni ruta.")
     limites = {"NODOS_CORE": (1, 3), "IDLE_TIMEOUT": (60, 3600), "SHUFFLE_PARTITIONS": (1, 200)}
     for clave, (minimo, maximo) in limites.items():
         if not minimo <= int(config[clave]) <= maximo:
@@ -120,8 +123,8 @@ class Despliegue:
         temp.write_text(json.dumps(self.state, indent=2), encoding="utf-8")
         temp.replace(self.state_path)
 
-    def aws(self, *args):
-        comando = ["aws", *args, "--region", self.c["AWS_REGION"], "--output", "json", "--no-cli-pager"]
+    def aws(self, *args, region=None):
+        comando = ["aws", *args, "--region", region or self.c["AWS_REGION"], "--output", "json", "--no-cli-pager"]
         if self.dry_run:
             print(json.dumps(comando, ensure_ascii=False))
             return {}
@@ -150,11 +153,30 @@ class Despliegue:
 
     def comprobar(self):
         self.identidad()
+        if not self.c.get("SUBNET_ID"):
+            raise ValueError("Ejecutar preparar y usar su entorno.preparado.env, o configurar SUBNET_ID.")
         subnets = self.aws("ec2", "describe-subnets", "--subnet-ids", self.c["SUBNET_ID"])
-        if not self.dry_run and subnets["Subnets"][0]["State"] != "available":
-            raise ValueError("La subred no está disponible.")
+        if not self.dry_run:
+            subnet = subnets["Subnets"][0]
+            tags = {t["Key"]: t["Value"] for t in subnet.get("Tags", [])}
+            if subnet["State"] != "available" or not subnet.get("MapPublicIpOnLaunch"):
+                raise ValueError("Se requiere una subred disponible con IPv4 pública automática, sin NAT.")
+            if tags.get("for-use-with-amazon-emr-managed-policies") != "true":
+                raise ValueError("La subred no tiene la etiqueta requerida por AmazonEMRServicePolicy_v2.")
+        rutas = self.aws("ec2", "describe-route-tables", "--filters",
+                         f"Name=association.subnet-id,Values={self.c['SUBNET_ID']}")
+        if not self.dry_run:
+            internet = any(r.get("DestinationCidrBlock") == "0.0.0.0/0" and
+                          r.get("GatewayId", "").startswith("igw-") and r.get("State") == "active"
+                          for t in rutas["RouteTables"] for r in t["Routes"])
+            if not internet:
+                raise ValueError("Falta ruta pública activa hacia Internet Gateway; no se creará EMR.")
+        self.aws("iam", "get-role", "--role-name", self.c["ROL_SERVICIO_EMR"])
+        perfil = self.aws("iam", "get-instance-profile", "--instance-profile-name", self.c["PERFIL_INSTANCIA_EMR"])
+        if not self.dry_run and [r["RoleName"] for r in perfil["InstanceProfile"]["Roles"]] != [self.c["PERFIL_INSTANCIA_EMR"]]:
+            raise ValueError("EMR requiere un rol EC2 del mismo nombre dentro del perfil de instancia.")
         self.aws("emr", "describe-release-label", "--release-label", self.c["EMR_RELEASE"])
-        print("Comprobación terminada. Roles, salida de red y tipos de instancia deben estar habilitados en Learner Lab.")
+        print("Comprobación terminada: identidad, subred pública, roles y release. Cuotas, políticas efectivas y arranque se confirman en AWS.")
 
     def bucket(self):
         self.identidad()
@@ -226,7 +248,7 @@ class Despliegue:
                 raise ValueError("El clúster no corresponde al proyecto y bucket del estado.")
         return cluster_id, cluster
 
-    def crear_cluster(self):
+    def crear_cluster(self, horas=1, max_usd=2, tarifas=None):
         self.comprobar()
         self.bucket_propio()
         if not self.state.get("release") and not self.dry_run:
@@ -236,14 +258,22 @@ class Despliegue:
             if self.dry_run or cluster["Status"]["State"] not in TERMINALES:
                 print(f"Clúster existente: {actual}; no se crea otro.")
                 return
+        informe = estimar(self, horas, tarifas)
+        if informe:
+            escenario = next(e for e in informe["escenarios"] if e["nodos_totales"] == 1 + int(self.c["NODOS_CORE"]))
+            if float(escenario["total_parcial_usd"]) > max_usd:
+                raise ValueError("La estimación parcial supera --max-usd. Revisar duración/nodos antes de crear EMR.")
         grupos = [{"Name": tipo, "InstanceRole": tipo, "InstanceType": self.c["INSTANCIA"],
-                   "InstanceCount": cantidad, "Market": "ON_DEMAND"}
+                   "InstanceCount": cantidad, "Market": "ON_DEMAND", "EbsConfiguration": {
+                       "EbsBlockDeviceConfigs": [{"VolumeSpecification": {"VolumeType": "gp3", "SizeInGB": DATA_GIB},
+                                                  "VolumesPerInstance": 1}]}}
                   for tipo, cantidad in (("MASTER", 1), ("CORE", int(self.c["NODOS_CORE"])))]
         resultado = self.aws("emr", "create-cluster", "--name", "minsadengue-pasos-1-3",
             "--release-label", self.c["EMR_RELEASE"], "--applications", "Name=Spark",
             "--service-role", self.c["ROL_SERVICIO_EMR"],
             "--ec2-attributes", json.dumps({"InstanceProfile": self.c["PERFIL_INSTANCIA_EMR"], "SubnetId": self.c["SUBNET_ID"]}),
             "--instance-groups", json.dumps(grupos), "--step-concurrency-level", "1",
+            "--ebs-root-volume-size", str(ROOT_GIB),
             "--log-uri", f"s3://{self.c['BUCKET']}/logs/emr/", "--no-termination-protected",
             "--auto-termination-policy", json.dumps({"IdleTimeout": int(self.c["IDLE_TIMEOUT"])}),
             "--tags", "Proyecto=minsadengue-bigdata", f"Bucket={self.c['BUCKET']}",
@@ -252,6 +282,7 @@ class Despliegue:
             self.state["cluster_id"] = resultado["ClusterId"]
             self.state.pop("step_ids", None)
             self.state["creado_utc"] = datetime.now(timezone.utc).isoformat()
+            self.state["estimacion_al_crear"] = informe
             self.guardar()
         print(resultado or "Simulación: create-cluster; no se creó infraestructura.")
 
@@ -334,24 +365,35 @@ class Despliegue:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("accion", choices=["comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar"])
+    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar"])
     parser.add_argument("--config", type=Path, default=ROOT / "nube/config/entorno.env")
     parser.add_argument("--salida", type=Path, default=ROOT / "output/aws")
     parser.add_argument("--dry-run", action="store_true", help="No invoca AWS; puede crear el ZIP local.")
     parser.add_argument("--base-local", type=Path, default=ROOT / "data/_nube")
     parser.add_argument("--fecha-carga")
     parser.add_argument("--timeout", type=int, default=3600)
+    parser.add_argument("--horas", type=float, default=1, help="Duración total prevista, incluido arranque y apagado.")
+    parser.add_argument("--max-usd", type=float, default=2, help="Umbral para la estimación parcial; NO es un límite de facturación.")
+    parser.add_argument("--tarifas", type=Path, help="JSON de tarifas revisadas para calcular sin consultar Pricing API.")
     args = parser.parse_args()
     if args.accion == "subir" and not args.fecha_carga:
         parser.error("subir requiere --fecha-carga")
     if args.timeout <= 0:
         parser.error("--timeout debe ser positivo")
+    if not 0 < args.horas <= 24 or not 0 < args.max_usd < float("inf"):
+        parser.error("Usar 0 < --horas <= 24 y --max-usd positivo y finito")
     try:
-        deployment = Despliegue(cargar_config(args.config), args.salida, args.dry_run)
+        requiere_infra = args.accion not in {"preparar", "estimar", "bucket", "subir"}
+        deployment = Despliegue(cargar_config(args.config, requiere_infra), args.salida, args.dry_run)
         if args.accion == "subir":
             deployment.subir(args.base_local, args.fecha_carga)
         elif args.accion == "cluster":
-            deployment.crear_cluster()
+            deployment.crear_cluster(args.horas, args.max_usd, args.tarifas)
+        elif args.accion == "preparar":
+            from cuenta_propia import preparar
+            preparar(deployment)
+        elif args.accion == "estimar":
+            estimar(deployment, args.horas, args.tarifas)
         elif args.accion == "esperar":
             deployment.esperar(args.timeout)
         else:

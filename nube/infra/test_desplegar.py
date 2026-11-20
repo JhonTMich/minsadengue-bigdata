@@ -3,14 +3,13 @@
 import contextlib
 import io
 import json
-from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 import zipfile
+from pathlib import Path
+from unittest.mock import patch
 
 import desplegar as d
-
 
 CONFIG = {"AWS_REGION": "us-east-1", "EXPECTED_ACCOUNT_ID": "123456789012",
           "BUCKET": "minsadengue-prueba", "EMR_RELEASE": "emr-7.1.0", "INSTANCIA": "m5.xlarge",
@@ -67,6 +66,7 @@ class PruebasInfra(unittest.TestCase):
     def test_creacion_registra_id_y_configura_dos_nodos_con_logs(self):
         self.deploy.state["release"] = "abc"
         with patch.object(self.deploy, "comprobar"), patch.object(self.deploy, "bucket_propio"), \
+             patch.object(d, "estimar", return_value={"escenarios": [{"nodos_totales": 2, "total_parcial_usd": "0.5"}]}), \
              patch.object(self.deploy, "aws", return_value={"ClusterId": "j-prueba"}) as aws:
             self.deploy.crear_cluster()
         args = aws.call_args.args
@@ -75,6 +75,9 @@ class PruebasInfra(unittest.TestCase):
         self.assertEqual([g["InstanceRole"] for g in grupos], ["MASTER", "CORE"])
         self.assertEqual(args[args.index("--step-concurrency-level") + 1], "1")
         self.assertIn("s3://minsadengue-prueba/logs/emr/", args)
+        self.assertEqual(args[args.index("--ebs-root-volume-size") + 1], "15")
+        self.assertEqual(grupos[0]["EbsConfiguration"]["EbsBlockDeviceConfigs"][0]["VolumeSpecification"],
+                         {"VolumeType": "gp3", "SizeInGB": 32})
         self.assertEqual(json.loads(self.deploy.state_path.read_text())["cluster_id"], "j-prueba")
 
     def test_no_duplica_cluster_activo(self):
@@ -83,6 +86,15 @@ class PruebasInfra(unittest.TestCase):
              patch.object(self.deploy, "cluster", return_value=("j-prueba", {"Status": {"State": "WAITING"}})), \
              patch.object(self.deploy, "aws") as aws:
             self.deploy.crear_cluster()
+        aws.assert_not_called()
+
+    def test_no_crea_cluster_si_estimacion_supera_umbral(self):
+        self.deploy.state["release"] = "abc"
+        with patch.object(self.deploy, "comprobar"), patch.object(self.deploy, "bucket_propio"), \
+             patch.object(d, "estimar", return_value={"escenarios": [{"nodos_totales": 2, "total_parcial_usd": "5"}]}), \
+             patch.object(self.deploy, "aws") as aws:
+            with self.assertRaisesRegex(ValueError, "supera"):
+                self.deploy.crear_cluster(max_usd=2)
         aws.assert_not_called()
 
     def test_no_sube_raw_si_falta_una_fuente(self):
