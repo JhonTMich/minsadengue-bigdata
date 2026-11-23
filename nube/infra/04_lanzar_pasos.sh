@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "$0")/../config/entorno.env"
+exec python3 "$(dirname "$0")/desplegar.py" lanzar "$@"
