@@ -140,6 +140,10 @@ Todavía no hay ejecución en la nube. Se utilizará una cuenta AWS propia, pues
 
 El punto 2 dispone de un [ejecutor y guía para cuenta propia](nube/infra/README.md): prepara roles y una VPC pública sin NAT Gateway, configura S3, sube datos/código y ejecuta Bronze → Silver → Gold en EMR/YARN con supervisión y solicitud de apagado. Incluye estimación de costos para 2 y 4 nodos usando AWS Pricing, revisión del costo parcial antes de crear el clúster, `--dry-run` y pruebas locales. La estimación no es un tope de facturación. Su ejecución real y las evidencias cloud siguen pendientes de configurar la cuenta; no se declaran como resultados medidos. Se conserva el alcance validado por años completos: histórico 2000–2023 y carga nueva de 2024.
 
+### Umbral de alerta del modelo cloud
+
+El paso 4 usa costo simétrico 1:1 por defecto, seleccionado con train hasta 2020 y validación 2021–2023. Para `contexto_clima` el umbral resultó 0.85. En validación sin brote vigente, la tasa de alertas fue 21.44 %, el recall 37.98 % y hubo 113 falsas alarmas frente a 128 semanas positivas detectadas. La tasa global de alertas fue 68.11 %. Es un compromiso académico con pérdida de sensibilidad, no una validación de utilidad sanitaria. El criterio se fija antes de evaluar 2024; los modelos anteriores requieren regenerar el paso 4 para incorporar el cambio. Ver [comparación, reproducción y bitácora](docs/umbral_alerta_validacion.md).
+
 ### Ejecuciones automáticas y evidencias
 
 ```bash
