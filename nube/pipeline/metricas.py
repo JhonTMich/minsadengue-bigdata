@@ -1,5 +1,7 @@
 """Métricas en Python puro: se calculan en el driver sobre pocas miles de filas."""
 
+from math import floor, isfinite, nextafter
+
 
 def _grupos(pares):
     i = 0
@@ -46,6 +48,24 @@ def umbral_por_costo(etiquetas, puntajes, costo_fn):
         _, fp, fn, _ = matriz(etiquetas, [p >= umbral for p in puntajes])
         return costo_fn * fn + fp
     return min((u / 100 for u in range(1, 100)), key=lambda u: (costo(u), -u))
+
+
+def umbral_por_tasa(puntajes, max_tasa=0.20):
+    """Menor corte empírico representable que respeta el presupuesto de alertas.
+
+    La comparación es >=, igual que en puntuación. Los empates nunca se separan.
+    Se permite no emitir alertas si ni 1.00 cumple el límite.
+    El límite se aplica a la validación agregada, no garantiza cuotas futuras.
+    """
+    if not puntajes or not isfinite(max_tasa) or not 0 <= max_tasa <= 1:
+        raise ValueError("Se necesitan puntajes y una tasa máxima entre 0 y 1.")
+    if any(not isfinite(p) or not 0 <= p <= 1 for p in puntajes):
+        raise ValueError("Los puntajes deben ser finitos y estar entre 0 y 1.")
+    permitidas = floor(max_tasa * len(puntajes))
+    if permitidas == len(puntajes):
+        return 0.0
+    # Excluir todo el empate en el primer puntaje que excedería el presupuesto.
+    return nextafter(sorted(puntajes, reverse=True)[permitidas], float("inf"))
 
 
 def resumen(etiquetas, puntajes, umbral=None):
