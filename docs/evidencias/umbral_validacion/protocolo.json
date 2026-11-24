@@ -1,0 +1,23 @@
+{
+  "train_hasta": 2020,
+  "validacion": [
+    2021,
+    2023
+  ],
+  "hasta": 2023,
+  "modelo_elegido": "contexto_clima",
+  "seleccion_modelo": "Sin cambios: AP sin brote actual",
+  "n_validacion": 2888,
+  "max_tasa_propuesta": 0.2,
+  "busqueda_costo": "rejilla 0.01..0.99; >=; empate de costo favorece umbral alto",
+  "busqueda_tope": "corte empírico exacto; >=; empates completos; posibilidad de no emitir",
+  "criterio_elegido": "costo_1_a_1",
+  "version_modelo_local": "v20261124T200610Z",
+  "codigo_sha256": {
+    "nube\\pipeline\\variables.py": "433674d3355c1c485df8c3816312c3df3af335499a0a144cfb171eab485e5ab9",
+    "nube\\pipeline\\metricas.py": "12f70e669a5105cbff19abcb871b3307f277f8f1489f0e2116b5a6f3f6de4b38",
+    "nube\\pipeline\\paso_04_modelo.py": "35cbb13f8ef2600c8a5ad72df2c69a59ddaf9a6099d5e2b562fbca84533177da"
+  },
+  "sha256_predicciones": "88d9be70cab8d27a2a6c61afbed2f659e6717dab70261f92ad397d36b7045dca",
+  "2024": "No se ejecutó ni se utilizó para seleccionar el umbral"
+}

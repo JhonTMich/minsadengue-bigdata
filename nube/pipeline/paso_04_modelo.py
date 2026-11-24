@@ -9,7 +9,7 @@ from pyspark.sql import types as T
 
 from pipeline.comun import (Cronometro, argumentos, crear_spark, escribir_evidencia, escribir_json,
                             inicio_anio_epi, ruta)
-from pipeline.metricas import resumen, umbral_por_costo
+from pipeline.metricas import resumen, umbral_por_costo, umbral_por_tasa
 from pipeline.variables import (ANIO_MIN_ENTRENAMIENTO, EXPERIMENTOS, HISTORIA_ANIOS, HORIZONTE, TODAS,
                                 climatologia, con_fecha, etiquetar, variables_base, variables_clima)
 
@@ -76,10 +76,17 @@ def main():
     parser = argumentos("Entrena el modelo de alerta con Spark MLlib y lo guarda versionado")
     parser.add_argument("--hasta", type=int, help="Último año de entrenamiento; por defecto, el último de Gold")
     parser.add_argument("--anios-validacion", type=int, default=3)
-    parser.add_argument("--costo-fn", type=float, default=3.0,
+    parser.add_argument("--costo-fn", type=float, default=1.0,
                         help="Cuántas falsas alarmas equivale un brote no detectado")
     parser.add_argument("--experimento", choices=["auto", *EXPERIMENTOS], default="auto")
+    parser.add_argument("--criterio-umbral", choices=["costo", "tope_alertas"], default="costo")
+    parser.add_argument("--max-tasa-alertas", type=float, default=0.20,
+                        help="Presupuesto de semanas-departamento con alerta en validación completa")
+    parser.add_argument("--exportar-validacion", action="store_true",
+                        help="Guarda probabilidades de validación por candidato para auditar umbrales")
     args = parser.parse_args()
+    if not 0 <= args.max_tasa_alertas <= 1 or args.costo_fn <= 0:
+        parser.error("La tasa debe estar entre 0 y 1 y el costo debe ser positivo")
     spark = crear_spark("dengue-paso4-modelo", args.shuffle)
     crono = Cronometro()
 
@@ -105,7 +112,9 @@ def main():
         filas = list(filas.values())
 
     etiquetas = [int(f["label"]) for f in filas]
-    umbrales = {e: umbral_por_costo(etiquetas, [f[e] for f in filas], args.costo_fn) for e in candidatos}
+    umbrales = {e: (umbral_por_costo(etiquetas, [f[e] for f in filas], args.costo_fn)
+                    if args.criterio_umbral == "costo"
+                    else umbral_por_tasa([f[e] for f in filas], args.max_tasa_alertas)) for e in candidatos}
     resultados = {e: evaluar(filas, e, umbrales[e]) for e in candidatos}
     resultados["persistencia"] = evaluar(filas, "brote_actual", 0.5)
     resultados["casos_solos"] = evaluar(filas, "log_casos", None)
@@ -132,7 +141,11 @@ def main():
     n_train = train_f.count()
     metadatos = {
         "version": version, "experimento": elegido, "variables": EXPERIMENTOS[elegido],
-        "umbral": umbrales[elegido], "costo_fn": args.costo_fn,
+        "umbral": umbrales[elegido], "costo_fn": args.costo_fn if args.criterio_umbral == "costo" else None,
+        "criterio_umbral": {"tipo": args.criterio_umbral, "subconjunto": "completo",
+                            "max_tasa_alertas": args.max_tasa_alertas if args.criterio_umbral == "tope_alertas" else None,
+                            "busqueda": "rejilla 0.01..0.99" if args.criterio_umbral == "costo"
+                            else "corte empírico exacto; >=; sin separar empates"},
         "entrenamiento": {"desde": ANIO_MIN_ENTRENAMIENTO, "hasta": hasta, "corte_exclusivo": corte(hasta),
                           "filas": n_train, "prevalencia": prevalencia},
         "validacion": {"entrenamiento_hasta": fin_train, "anios": [fin_train + 1, hasta],
@@ -142,6 +155,9 @@ def main():
         "seleccion": "Mayor precisión promedio en validación, semanas sin brote vigente",
     }
     escribir_json(spark, ruta(destino, "metadatos"), metadatos)
+    if args.exportar_validacion:
+        escribir_json(spark, ruta(destino, "validacion_predicciones"), {"anios": [fin_train + 1, hasta],
+            "entrenamiento_hasta": fin_train, "modelo_elegido": elegido, "candidatos": candidatos, "filas": filas})
     escribir_json(spark, ruta(args.base, "modelos", "vigente"), {"version": version, "ruta": destino})
 
     periodo = f"{fin_train + 1}-{hasta}"
