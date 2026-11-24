@@ -2,6 +2,7 @@
 PYTHONPATH=nube spark-submit --master local[2] tests/test_modelo_nube.py"""
 import random
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 
 from pipeline.metricas import auc, precision_promedio, umbral_por_costo
 from pipeline.paso_04_modelo import particion
+from pipeline.paso_05_alertas import anticipacion, completar_etiquetas
 from pipeline.variables import TODAS, con_fecha, etiquetar, variables_base
 
 GOLD = ROOT / "data/_nube/gold"
@@ -65,6 +67,39 @@ class SinFugaTemporal(unittest.TestCase):
         base = etiquetar(con_fecha(self.panel.filter("ano <= 2015"), self.semanas))
         ultimas = base.filter("ano = 2015 and semana > 48").select("label").distinct().collect()
         self.assertEqual([r.label for r in ultimas], [None])
+
+
+class Alertas(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.spark = SparkSession.builder.master("local[2]").config("spark.sql.shuffle.partitions", 2).getOrCreate()
+
+    def test_anticipacion(self):
+        from datetime import date, timedelta
+        brote = [0, 0, 0, 0, 0, 1, 1, 0, 0, 1]
+        alerta = [True, False, False, True, True, True, True, True, True, False]
+        filas = [("01", date(2024, 1, 7) + timedelta(weeks=i), b, a, False)
+                 for i, (b, a) in enumerate(zip(brote, alerta))]
+        df = self.spark.createDataFrame(filas, "cod_dep string, fecha_inicio date, brote_actual int, "
+                                               "alerta boolean, dentro_entrenamiento boolean")
+        resultado = anticipacion(df)
+        self.assertEqual(resultado["brotes_iniciados"], 2)
+        self.assertEqual(resultado["distribucion"], {0: 0, 1: 0, 2: 1, 3: 0, 4: 1})
+        self.assertEqual(resultado["con_alerta_previa"], 2)
+        self.assertEqual(resultado["mediana_semanas"], 3)
+
+    def test_completar_etiquetas_sin_pisar_las_conocidas(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            destino = f"{tmp}/alertas"
+            (self.spark.createDataFrame([("01", 2023, 51, 1), ("01", 2023, 52, None)],
+                                        "cod_dep string, ano int, semana int, brote_observado int")
+                 .write.partitionBy("ano").parquet(destino))
+            puntuado = self.spark.createDataFrame([("01", 2023, 51, 0.0), ("01", 2023, 52, 0.0)],
+                                                  "cod_dep string, ano int, semana int, label double")
+            df, completadas = completar_etiquetas(self.spark, destino, 2023, puntuado)
+            valores = {r.semana: r.brote_observado for r in df.collect()}
+        self.assertEqual(completadas, 1)
+        self.assertEqual(valores, {51: 1, 52: 0})
 
 
 if __name__ == "__main__":
