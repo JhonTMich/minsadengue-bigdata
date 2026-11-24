@@ -1,8 +1,9 @@
-# Ejecutar los pasos 1 a 3 en una cuenta AWS propia
+# Ejecutar el pipeline en una cuenta AWS propia
 
 Estos comandos cubren el punto 2 del proyecto: bucket S3 privado, cifrado y
-versionado; clúster EMR; Bronze, Silver y Gold en AWS. Reutilizan el pipeline local
-sin modificar sus transformaciones. No implementan modelo, Athena ni Power BI.
+versionado; clúster EMR; Bronze, Silver, Gold, modelo MLlib y alertas en AWS.
+Reutilizan el pipeline local sin modificar sus transformaciones. Athena y Power BI
+se configuran aparte.
 
 Estado: implementación probada sin recursos AWS. Para cerrar el punto 2 faltan
 configurar la cuenta, ejecutar y conservar evidencias reales. No se dispone de
@@ -115,7 +116,7 @@ operaciones sin invocar AWS:
 python nube/infra/desplegar.py bucket --dry-run
 python nube/infra/desplegar.py subir --fecha-carga 2026-11-17 --dry-run
 python nube/infra/desplegar.py cluster --dry-run
-python nube/infra/desplegar.py lanzar --dry-run
+python nube/infra/desplegar.py lanzar --corrida completa --dry-run
 ```
 
 `--dry-run` no necesita credenciales ni AWS CLI. Valida la configuración; `subir`
@@ -130,10 +131,21 @@ python nube/infra/desplegar.py estimar --horas 1
 python nube/infra/desplegar.py bucket
 python nube/infra/desplegar.py subir --fecha-carga 2026-11-17
 python nube/infra/desplegar.py cluster --horas 1 --max-usd 2
-python nube/infra/desplegar.py lanzar
+python nube/infra/desplegar.py lanzar --corrida completa
 python nube/infra/desplegar.py esperar --timeout 3600
 python nube/infra/desplegar.py estado
 ```
+
+Hay dos corridas:
+
+| Corrida | Pasos | Cuándo |
+|---|---|---|
+| `completa` | Bronze, Silver, Gold, entrenamiento y alertas | Primera carga (histórico) o cuando se decide reentrenar |
+| `carga` | Bronze, Silver, Gold y alertas | Cada carga nueva; usa el modelo vigente sin reentrenar |
+
+`lanzar` exige `--corrida` a propósito: si la carga de 2024 se lanzara como
+`completa`, el modelo se reentrenaría con 2024 y ese año dejaría de servir para
+evaluarlo. La corrida `carga` falla si todavía no hay un modelo vigente.
 
 Los cinco wrappers `01_...sh` a `04_...sh` y `99_apagar.sh` delegan al mismo
 ejecutor; `00_comprobar.sh` y `06_esperar.sh` completan el flujo. Son opcionales.
@@ -150,7 +162,7 @@ otro bucket/cuenta/región usar una `--salida` diferente en todos los comandos.
 
 ## 4. Supervisión, apagado y reintentos
 
-`esperar` consulta los tres pasos, conserva sus estados y, al completarse, descarga
+`esperar` consulta todos los pasos enviados, conserva sus estados y, al completarse, descarga
 las evidencias agregadas del pipeline. Solicita apagar el clúster tanto al terminar
 correctamente como ante fallo, timeout o interrupción de la terminal. Los propios
 pasos también solicitan terminar EMR ante un fallo.
@@ -191,7 +203,7 @@ Después de completar el histórico y confirmar su apagado:
 python nube/demo/dividir_cargas.py --base data/_nube --parte nueva --fecha-carga 2026-11-18 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
 python nube/infra/desplegar.py subir --fecha-carga 2026-11-18
 python nube/infra/desplegar.py cluster --horas 1 --max-usd 2
-python nube/infra/desplegar.py lanzar
+python nube/infra/desplegar.py lanzar --corrida carga
 python nube/infra/desplegar.py esperar --timeout 3600
 python nube/infra/desplegar.py estado
 ```
@@ -214,7 +226,7 @@ histórica. La generalización del contrato incremental queda fuera del punto 2.
 - S3 `logs/emr/`: logs de EMR/YARN; en deploy mode cluster, revisar el contenedor
   YARN del driver si falla una aplicación.
 - Consola S3: comprobar bloqueo de acceso público, cifrado, versionado y las capas.
-- Consola EMR: comprobar dos nodos, master YARN en la evidencia del pipeline, tres
+- Consola EMR: comprobar dos nodos, master YARN en la evidencia del pipeline, cinco (completa) o cuatro (carga)
   pasos `COMPLETED` y estado final de apagado.
 - Comparar conteos del histórico y carga nueva con la referencia local antes de
   declarar paridad. No reutilizar los tiempos locales como mediciones AWS.

@@ -55,13 +55,31 @@ class PruebasInfra(unittest.TestCase):
             self.assertIn(b"def crear_spark", archivo.read("pipeline/comun.py"))
 
     def test_pasos_son_secuenciales_y_yarn_con_dependencias(self):
-        pasos = d.pasos(CONFIG["BUCKET"], "abc", 8)
-        self.assertEqual([p["Name"] for p in pasos], [f.removesuffix(".py") for f in d.FILES[2:]])
+        pasos = d.pasos(CONFIG["BUCKET"], "abc", 8, "completa")
+        self.assertEqual([p["Name"] for p in pasos], [f.removesuffix(".py") for f in d.PASOS])
         for paso in pasos:
             self.assertEqual(paso["ActionOnFailure"], "TERMINATE_CLUSTER")
             args = paso["HadoopJarStep"]["Args"]
             self.assertEqual(args[args.index("--master") + 1], "yarn")
             self.assertEqual(args[args.index("--py-files") + 1], "s3://minsadengue-prueba/codigo/abc/pipeline.zip")
+
+    def test_corrida_de_carga_no_reentrena(self):
+        nombres = [p["Name"] for p in d.pasos(CONFIG["BUCKET"], "abc", 8, "carga")]
+        self.assertEqual(nombres, ["paso_01_bronze", "paso_02_silver", "paso_03_gold", "paso_05_alertas"])
+
+    def test_zip_incluye_modulos_del_modelo(self):
+        with zipfile.ZipFile(io.BytesIO(d.paquete()[0])) as archivo:
+            self.assertTrue({"pipeline/variables.py", "pipeline/metricas.py"} <= set(archivo.namelist()))
+
+    def test_lanzar_registra_la_corrida(self):
+        self.deploy.state["release"] = "abc"
+        with patch.object(self.deploy, "identidad"), \
+             patch.object(self.deploy, "cluster", return_value=("j-a", {"Status": {"State": "WAITING"}})), \
+             patch.object(self.deploy, "aws", return_value={"StepIds": ["s-1", "s-2", "s-3", "s-5"]}) as aws:
+            self.deploy.lanzar("carga")
+        args = aws.call_args.args
+        self.assertEqual(len(json.loads(args[args.index("--steps") + 1])), 4)
+        self.assertEqual(self.deploy.state["corrida"], "carga")
 
     def test_creacion_registra_id_y_configura_dos_nodos_con_logs(self):
         self.deploy.state["release"] = "abc"
@@ -143,9 +161,9 @@ class PruebasInfra(unittest.TestCase):
                 self.deploy.esperar(100)
             apagar.assert_called_once()
 
-    def test_exito_de_tres_steps_solicita_apagado(self):
-        self.deploy.state["step_ids"] = ["s-a", "s-b", "s-c"]
-        with patch.object(self.deploy, "estado", return_value=[{"Step": {"Status": {"State": "COMPLETED"}}}] * 3), \
+    def test_exito_de_todos_los_steps_solicita_apagado(self):
+        self.deploy.state["step_ids"] = ["s-1", "s-2", "s-3", "s-4", "s-5"]
+        with patch.object(self.deploy, "estado", return_value=[{"Step": {"Status": {"State": "COMPLETED"}}}] * 5), \
              patch.object(self.deploy, "evidencias") as evidencias, \
              patch.object(self.deploy, "apagar") as apagar:
             self.deploy.esperar(100)
@@ -167,7 +185,7 @@ class PruebasInfra(unittest.TestCase):
              patch.object(self.deploy, "cluster", return_value=("j-a", {"Status": {"State": "WAITING"}})), \
              patch.object(self.deploy, "aws") as aws:
             with self.assertRaisesRegex(ValueError, "Ya se enviaron"):
-                self.deploy.lanzar()
+                self.deploy.lanzar("carga")
             aws.assert_not_called()
 
     def test_dry_run_no_invoca_aws_ni_guarda_estado(self):
@@ -176,7 +194,7 @@ class PruebasInfra(unittest.TestCase):
              patch.dict(d.os.environ, {}, clear=True):
             deployment.bucket()
             deployment.crear_cluster()
-            deployment.lanzar()
+            deployment.lanzar("completa")
             deployment.apagar()
         self.assertFalse(deployment.state_path.exists())
 
