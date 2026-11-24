@@ -109,11 +109,18 @@ class Cronometro:
         print(f"[{nombre}] {segundos:.2f} s", flush=True)
 
 
+def escribir_json(spark, destino, datos):
+    texto = json.dumps(datos, ensure_ascii=False, default=str)
+    spark.createDataFrame([(texto,)], ["value"]).coalesce(1).write.mode("overwrite").text(destino)
+
+
+def leer_json(spark, destino):
+    return json.loads(spark.read.text(destino).first()["value"])
+
+
 def escribir_evidencia(spark, base, paso, datos):
     ahora = datetime.now(timezone.utc)
     registro = {"paso": paso, "fecha_utc": ahora.isoformat(timespec="seconds"),
                 "spark": spark.version, "master": spark.sparkContext.master, **datos}
-    texto = json.dumps(registro, ensure_ascii=False, default=str)
-    (spark.createDataFrame([(texto,)], ["value"]).coalesce(1).write.mode("overwrite")
-          .text(ruta(base, "evidencias", paso, f"ejecucion={ahora:%Y%m%dT%H%M%SZ}")))
+    escribir_json(spark, ruta(base, "evidencias", paso, f"ejecucion={ahora:%Y%m%dT%H%M%SZ}"), registro)
     print(json.dumps(registro, ensure_ascii=False, indent=2, default=str), flush=True)
