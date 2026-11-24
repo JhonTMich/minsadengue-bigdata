@@ -1,7 +1,6 @@
-version: '3.8'
 services:
   pyspark-notebook:
-    image: jupyter/pyspark-notebook:latest
+    image: jupyter/pyspark-notebook@sha256:58377aaa152b741e244f201679f96d909a024ea337088cc276b0ee32ab3f076f
     ports:
       - "8888:8888"
       - "4040:4040" 

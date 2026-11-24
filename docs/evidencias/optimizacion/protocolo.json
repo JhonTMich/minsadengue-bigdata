@@ -1,0 +1,70 @@
+{
+  "orden": [
+    [
+      true,
+      8,
+      2
+    ],
+    [
+      false,
+      200,
+      3
+    ],
+    [
+      false,
+      8,
+      3
+    ],
+    [
+      true,
+      8,
+      3
+    ],
+    [
+      true,
+      200,
+      1
+    ],
+    [
+      true,
+      8,
+      1
+    ],
+    [
+      true,
+      200,
+      3
+    ],
+    [
+      false,
+      200,
+      1
+    ],
+    [
+      false,
+      200,
+      2
+    ],
+    [
+      false,
+      8,
+      1
+    ],
+    [
+      false,
+      8,
+      2
+    ],
+    [
+      true,
+      200,
+      2
+    ]
+  ],
+  "master": "local[2]",
+  "driver_memory": "4g",
+  "cache_so": "no_controlada",
+  "python": "3.11.6",
+  "plataforma": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "semilla": 42
+}

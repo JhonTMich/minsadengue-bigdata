@@ -1,0 +1,59 @@
+{
+  "factor": 1,
+  "image": "sha256:58377aaa152b741e244f201679f96d909a024ea337088cc276b0ee32ab3f076f",
+  "timeout_s": 1200,
+  "memoria_limite": "4g",
+  "cpus": 2,
+  "inicio_utc": "2026-11-07T05:21:50.929345+00:00",
+  "exit_code": 0,
+  "container_state": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-11-07T05:21:51.184836697Z",
+    "FinishedAt": "2026-11-07T05:23:05.703791365Z",
+    "Health": {
+      "Status": "unhealthy",
+      "FailingStreak": 14,
+      "Log": [
+        {
+          "Start": "2026-11-07T05:22:43.446085806Z",
+          "End": "2026-11-07T05:22:43.642616341Z",
+          "ExitCode": 1,
+          "Output": "Traceback (most recent call last):\n  File \"/etc/jupyter/docker_healthcheck.py\", line 14, in <module>\n    json_file = next(runtime_dir.glob(\"*server-*.json\"))\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nStopIteration\n"
+        },
+        {
+          "Start": "2026-11-07T05:22:48.641055421Z",
+          "End": "2026-11-07T05:22:49.052908501Z",
+          "ExitCode": 1,
+          "Output": "Traceback (most recent call last):\n  File \"/etc/jupyter/docker_healthcheck.py\", line 14, in <module>\n    json_file = next(runtime_dir.glob(\"*server-*.json\"))\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nStopIteration\n"
+        },
+        {
+          "Start": "2026-11-07T05:22:54.053614209Z",
+          "End": "2026-11-07T05:22:54.261250071Z",
+          "ExitCode": 1,
+          "Output": "Traceback (most recent call last):\n  File \"/etc/jupyter/docker_healthcheck.py\", line 14, in <module>\n    json_file = next(runtime_dir.glob(\"*server-*.json\"))\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nStopIteration\n"
+        },
+        {
+          "Start": "2026-11-07T05:22:59.262749022Z",
+          "End": "2026-11-07T05:22:59.546163611Z",
+          "ExitCode": 1,
+          "Output": "Traceback (most recent call last):\n  File \"/etc/jupyter/docker_healthcheck.py\", line 14, in <module>\n    json_file = next(runtime_dir.glob(\"*server-*.json\"))\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nStopIteration\n"
+        },
+        {
+          "Start": "2026-11-07T05:23:04.54762771Z",
+          "End": "2026-11-07T05:23:04.735180491Z",
+          "ExitCode": 1,
+          "Output": "Traceback (most recent call last):\n  File \"/etc/jupyter/docker_healthcheck.py\", line 14, in <module>\n    json_file = next(runtime_dir.glob(\"*server-*.json\"))\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nStopIteration\n"
+        }
+      ]
+    }
+  },
+  "fin_utc": "2026-11-07T05:23:06.406119+00:00"
+}

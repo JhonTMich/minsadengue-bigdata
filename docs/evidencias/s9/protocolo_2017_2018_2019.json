@@ -1,0 +1,46 @@
+{
+  "train": [
+    2005,
+    2017
+  ],
+  "validacion": [
+    2018,
+    2019
+  ],
+  "corte_exclusivo_train": "2017-12-03",
+  "embargo_semanas": 4,
+  "horizonte": 4,
+  "historia_anios": 5,
+  "min_casos_brote": 5,
+  "min_casos_departamento": 1000,
+  "departamentos": [
+    "01",
+    "02",
+    "05",
+    "06",
+    "08",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "20",
+    "22",
+    "24",
+    "25"
+  ],
+  "cohorte": "Seleccionada con conteos 2000 hasta corte exclusivo de train",
+  "climatologia": "2005 hasta corte exclusivo de train",
+  "umbral": 0.5,
+  "nota": "Exploratorio; 2021–2024 no se usa y ya fue inspeccionado en el parcial.",
+  "n_train": 11458,
+  "n_validacion": 1700,
+  "prevalencia_train": 0.36053412462908013,
+  "spark": "3.5.0",
+  "master": "local[2]",
+  "driver_memoria": "2g",
+  "supuestos": "Casos y clima de t disponibles al emitir señal; retrasos de notificación no modelados."
+}

@@ -1,0 +1,64 @@
+{
+  "factor": 100,
+  "estado": "completado",
+  "etapa": "finalizado",
+  "cache_so": "no_controlada",
+  "clima_replicado": false,
+  "raw_reutilizado": true,
+  "generacion_s": 0.03337707999980921,
+  "raw_bytes": 10855027322,
+  "spark_temporales": "/home/jovyan/work/data/escalabilidad_completa/x100/spark_tmp",
+  "spark": "3.5.0",
+  "master": "local[2]",
+  "driver_memoria": "2g",
+  "limite_contenedor_gib": 4,
+  "shuffle_partitions": 8,
+  "segundos_transcurridos": 1165.4196095199995,
+  "pipeline_s": 1188.5215768960002,
+  "total_s": 1192.006195518,
+  "registros": 102942100,
+  "filas_gold": 24776,
+  "casos_gold": 102863900,
+  "tiempos": [
+    {
+      "etapa": "bronze_dengue",
+      "segundos": 351.54
+    },
+    {
+      "etapa": "bronze_clima",
+      "segundos": 2.15
+    },
+    {
+      "etapa": "dengue_calidad",
+      "segundos": 178.06
+    },
+    {
+      "etapa": "dengue_silver_escritura",
+      "segundos": 623.24
+    },
+    {
+      "etapa": "clima_calidad",
+      "segundos": 1.44
+    },
+    {
+      "etapa": "clima_silver_escritura",
+      "segundos": 1.11
+    },
+    {
+      "etapa": "gold_escritura",
+      "segundos": 12.01
+    }
+  ],
+  "spill_memoria_bytes": 17951612560,
+  "spill_disco_bytes": 2176897275,
+  "shuffle_write_bytes": 2633790788,
+  "shuffle_read_bytes": 2634096231,
+  "memoria_pico_contenedor_bytes": 2706657280,
+  "memoria_actual_contenedor_bytes": 1471602688,
+  "tamanos_bytes": {
+    "raw": 10855027322,
+    "bronze": 446011384,
+    "silver": 322675794,
+    "gold": 191483
+  }
+}

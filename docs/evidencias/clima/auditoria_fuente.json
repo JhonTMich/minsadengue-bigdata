@@ -1,0 +1,206 @@
+{
+  "metodo": "Igualdad exacta de todas las fechas y variables de properties.parameter; los puntos de consulta no se interpretan como coordenadas de la celda de origen.",
+  "archivos": [
+    {
+      "archivo": "clima_01_-5.64_-78.53.json",
+      "sha256_series": "8fec35130658d5deb05ae756c372f8e2da18328e993a133c138a1799a7698bcc",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_02_-9.07_-78.59.json",
+      "sha256_series": "91d2f78ef11c69dd01b46fabfd1787f1f7c3fa242fda39ff03288f8479eb8e1a",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_05_-11.91_-73.285.json",
+      "sha256_series": "67bf5ff5bd7abe7c7f0aff194e684066a4c7a51c31b419b14dcf3e15bc985d76",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_06_-5.71_-78.81.json",
+      "sha256_series": "8fec35130658d5deb05ae756c372f8e2da18328e993a133c138a1799a7698bcc",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_07_-11.87_-77.755.json",
+      "sha256_series": "154937f7ab4374abaaf763589d58b2abd531cbacf22474b5837071bc5c095fce",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_08_-12.36_-73.315.json",
+      "sha256_series": "bbfba46de5669e05717ac65913728f0747048d689bc25604c23339e824f2f7a4",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_10_-8.8_-75.375.json",
+      "sha256_series": "b3fd705bff07dcc5414729ba6b353d48ee96bf10e0cd5374be019a7501933910",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_11_-13.57_-76.355.json",
+      "sha256_series": "c6355bccba1d49769206d2bfc3b168d2c9737db7e9930b5a71e96c432cf053ed",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_12_-11.05_-74.695.json",
+      "sha256_series": "09dd34e0194001b1ce2aeb59db5bd20bf3cc45e344f8427742be98dd3f0cb9e7",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_13_-8.11_-79.655.json",
+      "sha256_series": "b70689ea3be9c623444ffb86aac8c1cd55278fdd5d164fceaa5bb3b81994f8c7",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_14_-6.77_-79.84.json",
+      "sha256_series": "6c127aa35ac06b3c0c86f2b50475d5ac6b1d03daf3ff65b0d2ad59f4d2c1e76e",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_15_-11.97_-77.655.json",
+      "sha256_series": "154937f7ab4374abaaf763589d58b2abd531cbacf22474b5837071bc5c095fce",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_16_-3.75_-73.25.json",
+      "sha256_series": "71d3be13d89799bad3eb211aae3aedb046368f93f11cf45b1d3eced2b9112074",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_17_-12.59_-69.19.json",
+      "sha256_series": "a4d7d70c3962bf0cfbd695f2a477754c3e8d673abfa623e3e19d3f30ddc03514",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_19_-9.86_-75.01.json",
+      "sha256_series": "f0b788f766a11f772f7f56c4f562476e048ba3dd0aa55cf13b8222c7083fad01",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_20_-5.19_-80.63.json",
+      "sha256_series": "ba5050032e6c1c0b361eeb4d89469b75aa58411dbb5a7c8b383835ccab30db70",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_22_-6.49_-76.36.json",
+      "sha256_series": "1039ab994605b3c0d572be6a71d805d425dc5eb1ff1fca209c2c5da3873e24c6",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_24_-3.57_-80.45.json",
+      "sha256_series": "42667fa175fc79f2825e0358f578ce7467b005cfa30df52989ba3ad96a3056cf",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    },
+    {
+      "archivo": "clima_25_-8.38_-74.55.json",
+      "sha256_series": "f0454a9dd5315c441602d87e81c8a5b1b9cf1afd5c72ed570e89bbcfdf452aea",
+      "dias": 9132,
+      "relleno_por_variable": {
+        "T2M": 0,
+        "RH2M": 0,
+        "PRECTOTCORR": 0
+      }
+    }
+  ],
+  "series_distintas": 17,
+  "series_identicas": [
+    [
+      "clima_01_-5.64_-78.53.json",
+      "clima_06_-5.71_-78.81.json"
+    ],
+    [
+      "clima_07_-11.87_-77.755.json",
+      "clima_15_-11.97_-77.655.json"
+    ]
+  ]
+}

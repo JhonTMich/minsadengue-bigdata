@@ -1,0 +1,2 @@
+# Los scripts se ejecutan en Linux (Learner Lab) y Git Bash.
+*.sh text eol=lf
