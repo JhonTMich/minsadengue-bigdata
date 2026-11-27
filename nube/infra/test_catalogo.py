@@ -74,5 +74,10 @@ class PruebasCatalogo(unittest.TestCase):
         self.assertFalse((Path(self.temp.name) / "simulacion").exists())
 
 
+    def test_salida_del_cli_en_cp1252_se_lee(self):
+        self.assertEqual(d.decodificar("'Código'".encode("cp1252")), "'Código'")
+        self.assertEqual(d.decodificar("'Código'".encode("utf-8")), "'Código'")
+
+
 if __name__ == "__main__":
     unittest.main()

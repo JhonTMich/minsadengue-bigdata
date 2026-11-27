@@ -100,6 +100,14 @@ def archivos_raw(base, fecha):
     return archivos
 
 
+def decodificar(datos):
+    """En Windows el AWS CLI escribe con la página de códigos de la consola (cp1252), no en UTF-8."""
+    try:
+        return datos.decode("utf-8")
+    except UnicodeDecodeError:
+        return datos.decode("cp1252", errors="replace")
+
+
 def sha_archivo(path):
     digest = hashlib.sha256()
     with path.open("rb") as entrada:
@@ -134,11 +142,11 @@ class Despliegue:
             print(json.dumps(comando, ensure_ascii=False))
             return {}
         entorno = dict(os.environ, AWS_PAGER="", AWS_CLI_AUTO_PROMPT="off")
-        resultado = subprocess.run(comando, capture_output=True, text=True, encoding="utf-8",
-                                   env=entorno, timeout=180)
+        resultado = subprocess.run(comando, capture_output=True, env=entorno, timeout=180)
         if resultado.returncode:
-            raise ErrorAWS(resultado.stderr.strip())
-        return json.loads(resultado.stdout) if resultado.stdout.strip() else {}
+            raise ErrorAWS(decodificar(resultado.stderr).strip())
+        salida = decodificar(resultado.stdout)
+        return json.loads(salida) if salida.strip() else {}
 
     def identidad(self):
         # No aceptar endpoints de emulador como evidencia de ejecución cloud.
