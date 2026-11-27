@@ -9,6 +9,8 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
 ANIO_INICIO = 2000
+# Solo es la cota de validación (rechaza años futuros). No se fija en 2024 para que las
+# cargas incrementales de años nuevos se acepten; dim_semana se calcula con el año máximo de los datos.
 ANIO_FIN = date.today().year
 MIN_CASOS_DEPARTAMENTO = 1000
 

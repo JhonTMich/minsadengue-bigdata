@@ -1,4 +1,4 @@
-"""Punto 2: S3 y EMR para los pasos 1 a 3. Solo requiere Python y AWS CLI v2."""
+"""S3 y EMR para el pipeline (pasos 1 a 5). Solo requiere Python y AWS CLI v2."""
 
 import argparse
 import hashlib
@@ -18,7 +18,12 @@ from errores import ErrorAWS
 
 ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = ROOT / "nube/pipeline"
-FILES = ["__init__.py", "comun.py", "paso_01_bronze.py", "paso_02_silver.py", "paso_03_gold.py"]
+BOOTSTRAP = Path(__file__).resolve().parent / "bootstrap_python.sh"
+MODULOS = ["__init__.py", "comun.py", "variables.py", "metricas.py"]
+PASOS = ["paso_01_bronze.py", "paso_02_silver.py", "paso_03_gold.py", "paso_04_modelo.py", "paso_05_alertas.py"]
+FILES = MODULOS + PASOS
+# completa: primera carga o reentrenamiento. carga: datos nuevos con el modelo vigente.
+CORRIDAS = {"completa": PASOS, "carga": [p for p in PASOS if p != "paso_04_modelo.py"]}
 TERMINALES = {"TERMINATED", "TERMINATED_WITH_ERRORS"}
 
 
@@ -69,16 +74,16 @@ def paquete():
     return datos, hashlib.sha256(datos).hexdigest()
 
 
-def pasos(bucket, release, shuffle):
+def pasos(bucket, release, shuffle, corrida):
     codigo = f"s3://{bucket}/codigo/{release}"
     return [
-        {"Name": nombre.removesuffix(".py"), "ActionOnFailure": "TERMINATE_CLUSTER",
-         "HadoopJarStep": {"Jar": "command-runner.jar", "Args": [
+        {"Type": "CUSTOM_JAR", "Name": nombre.removesuffix(".py"), "ActionOnFailure": "TERMINATE_CLUSTER",
+         "Jar": "command-runner.jar", "Args": [
              "spark-submit", "--master", "yarn", "--deploy-mode", "cluster",
              "--conf", "spark.yarn.submit.waitAppCompletion=true",
              "--py-files", f"{codigo}/pipeline.zip", f"{codigo}/{nombre}",
-             "--base", f"s3://{bucket}/datalake", "--shuffle", str(shuffle)]}}
-        for nombre in FILES[2:]
+             "--base", f"s3://{bucket}/datalake", "--shuffle", str(shuffle)]}
+        for nombre in CORRIDAS[corrida]
     ]
 
 
@@ -93,6 +98,14 @@ def archivos_raw(base, fecha):
             raise ValueError(f"Se requieren CSV no vacíos y sin enlaces en {carpeta}.")
         archivos.extend((p, f"datalake/raw/{fuente}/fecha_carga={fecha}/{p.name}") for p in candidatos)
     return archivos
+
+
+def decodificar(datos):
+    """En Windows el AWS CLI escribe con la página de códigos de la consola (cp1252), no en UTF-8."""
+    try:
+        return datos.decode("utf-8")
+    except UnicodeDecodeError:
+        return datos.decode("cp1252", errors="replace")
 
 
 def sha_archivo(path):
@@ -129,11 +142,11 @@ class Despliegue:
             print(json.dumps(comando, ensure_ascii=False))
             return {}
         entorno = dict(os.environ, AWS_PAGER="", AWS_CLI_AUTO_PROMPT="off")
-        resultado = subprocess.run(comando, capture_output=True, text=True, encoding="utf-8",
-                                   env=entorno, timeout=180)
+        resultado = subprocess.run(comando, capture_output=True, env=entorno, timeout=180)
         if resultado.returncode:
-            raise ErrorAWS(resultado.stderr.strip())
-        return json.loads(resultado.stdout) if resultado.stdout.strip() else {}
+            raise ErrorAWS(decodificar(resultado.stderr).strip())
+        salida = decodificar(resultado.stdout)
+        return json.loads(salida) if salida.strip() else {}
 
     def identidad(self):
         # No aceptar endpoints de emulador como evidencia de ejecución cloud.
@@ -230,9 +243,11 @@ class Despliegue:
         build.mkdir(parents=True, exist_ok=True)
         (build / "pipeline.zip").write_bytes(datos)
         codigo = [(build / "pipeline.zip", f"codigo/{release}/pipeline.zip")]
-        codigo += [(PIPELINE / nombre, f"codigo/{release}/{nombre}") for nombre in FILES[2:]]
-        self.subir_inmutables(archivos + codigo)
+        codigo += [(PIPELINE / nombre, f"codigo/{release}/{nombre}") for nombre in PASOS]
+        bootstrap = f"codigo/bootstrap/{sha_archivo(BOOTSTRAP)}.sh"
+        self.subir_inmutables(archivos + codigo + [(BOOTSTRAP, bootstrap)])
         self.state["release"] = release
+        self.state["bootstrap"] = bootstrap
         self.state.setdefault("cargas", {})[fecha] = {key: sha_archivo(p) for p, key in archivos}
         self.guardar()
         print(f"Carga {fecha}; paquete {release}; base s3://{self.c['BUCKET']}/datalake")
@@ -253,6 +268,8 @@ class Despliegue:
         self.bucket_propio()
         if not self.state.get("release") and not self.dry_run:
             raise ValueError("Subir primero datos y código; así se evita crear un clúster sin entradas.")
+        if not self.state.get("bootstrap") and not self.dry_run:
+            raise ValueError("Volver a ejecutar subir: falta el script que instala numpy y pandas para MLlib.")
         if self.state.get("cluster_id"):
             actual, cluster = self.cluster()
             if self.dry_run or cluster["Status"]["State"] not in TERMINALES:
@@ -263,17 +280,19 @@ class Despliegue:
             escenario = next(e for e in informe["escenarios"] if e["nodos_totales"] == 1 + int(self.c["NODOS_CORE"]))
             if float(escenario["total_parcial_usd"]) > max_usd:
                 raise ValueError("La estimación parcial supera --max-usd. Revisar duración/nodos antes de crear EMR.")
-        grupos = [{"Name": tipo, "InstanceRole": tipo, "InstanceType": self.c["INSTANCIA"],
-                   "InstanceCount": cantidad, "Market": "ON_DEMAND", "EbsConfiguration": {
+        grupos = [{"Name": tipo, "InstanceGroupType": tipo, "InstanceType": self.c["INSTANCIA"],
+                   "InstanceCount": cantidad, "EbsConfiguration": {
                        "EbsBlockDeviceConfigs": [{"VolumeSpecification": {"VolumeType": "gp3", "SizeInGB": DATA_GIB},
                                                   "VolumesPerInstance": 1}]}}
                   for tipo, cantidad in (("MASTER", 1), ("CORE", int(self.c["NODOS_CORE"])))]
-        resultado = self.aws("emr", "create-cluster", "--name", "minsadengue-pasos-1-3",
+        resultado = self.aws("emr", "create-cluster", "--name", "minsadengue-pipeline",
             "--release-label", self.c["EMR_RELEASE"], "--applications", "Name=Spark",
             "--service-role", self.c["ROL_SERVICIO_EMR"],
             "--ec2-attributes", json.dumps({"InstanceProfile": self.c["PERFIL_INSTANCIA_EMR"], "SubnetId": self.c["SUBNET_ID"]}),
             "--instance-groups", json.dumps(grupos), "--step-concurrency-level", "1",
             "--ebs-root-volume-size", str(ROOT_GIB),
+            "--bootstrap-actions", json.dumps([{"Name": "instalar-librerias-python",
+                "Path": f"s3://{self.c['BUCKET']}/{self.state.get('bootstrap', 'codigo/bootstrap/SIMULACION.sh')}"}]),
             "--log-uri", f"s3://{self.c['BUCKET']}/logs/emr/", "--no-termination-protected",
             "--auto-termination-policy", json.dumps({"IdleTimeout": int(self.c["IDLE_TIMEOUT"])}),
             "--tags", "Proyecto=minsadengue-bigdata", f"Bucket={self.c['BUCKET']}",
@@ -286,7 +305,7 @@ class Despliegue:
             self.guardar()
         print(resultado or "Simulación: create-cluster; no se creó infraestructura.")
 
-    def lanzar(self):
+    def lanzar(self, corrida):
         self.identidad()
         cluster_id, cluster = self.cluster()
         if not self.dry_run and cluster["Status"]["State"] not in {"STARTING", "BOOTSTRAPPING", "RUNNING", "WAITING"}:
@@ -297,11 +316,13 @@ class Despliegue:
         if not release:
             raise ValueError("No se registró código subido.")
         resultado = self.aws("emr", "add-steps", "--cluster-id", cluster_id, "--steps",
-                            json.dumps(pasos(self.c["BUCKET"], release, self.c["SHUFFLE_PARTITIONS"])))
+                            json.dumps(pasos(self.c["BUCKET"], release, self.c["SHUFFLE_PARTITIONS"], corrida)))
         if not self.dry_run:
             self.state["step_ids"] = resultado["StepIds"]
+            self.state["corrida"] = corrida
             self.guardar()
-        print(resultado or "Simulación: tres pasos secuenciales con Spark en YARN.")
+        nombres = ", ".join(n.removesuffix(".py") for n in CORRIDAS[corrida])
+        print(resultado or f"Simulación de la corrida {corrida}: {nombres}, en orden y con Spark en YARN.")
 
     def estado(self):
         self.identidad()
@@ -329,14 +350,15 @@ class Despliegue:
         print("Evidencias agregadas del pipeline descargadas; originales y casos individuales no se descargan.")
 
     def esperar(self, timeout):
-        if not self.state.get("step_ids"):
+        if not self.state.get("step_ids") and not self.dry_run:
             raise ValueError("No hay pasos enviados para supervisar.")
         limite = time.monotonic() + timeout
         try:
             while True:
                 steps = self.estado()
                 estados = [s["Step"]["Status"]["State"] for s in steps]
-                if self.dry_run or (len(estados) == 3 and all(e == "COMPLETED" for e in estados)):
+                completos = len(estados) == len(self.state.get("step_ids", [])) and all(e == "COMPLETED" for e in estados)
+                if self.dry_run or completos:
                     self.evidencias()
                     return
                 if any(e in {"FAILED", "CANCELLED", "INTERRUPTED"} for e in estados):
@@ -353,6 +375,27 @@ class Despliegue:
                     raise
                 print(f"No se pudo solicitar el apagado: {error}. Revisar EMR en la consola.", file=sys.stderr)
 
+    def todo(self, base, fecha, corrida, horas=1, max_usd=2, tarifas=None, timeout=3600):
+        """bucket, subir, cluster, lanzar, esperar y catalogo en orden. Se puede repetir:
+        reutiliza el clúster activo y no reenvía pasos ya enviados. Siempre solicita el apagado."""
+        self.bucket()
+        self.subir(base, fecha)
+        self.crear_cluster(horas, max_usd, tarifas)
+        try:
+            if self.state.get("step_ids") and not self.dry_run:
+                print("Pasos ya enviados a este clúster; se retoma la supervisión.")
+            else:
+                self.lanzar(corrida)
+        except BaseException:
+            try:
+                self.apagar()
+            except (ErrorAWS, OSError, ValueError, subprocess.SubprocessError) as error:
+                print(f"No se pudo solicitar el apagado: {error}. Revisar EMR en la consola.", file=sys.stderr)
+            raise
+        self.esperar(timeout)  # apaga el clúster al terminar, con o sin error
+        from catalogo import catalogo
+        catalogo(self)
+
     def apagar(self):
         self.identidad()
         cluster_id, cluster = self.cluster()
@@ -365,25 +408,30 @@ class Despliegue:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar"])
+    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar", "catalogo", "todo"],
+                        help="todo: bucket, subir, cluster, lanzar, esperar (apaga) y catalogo")
     parser.add_argument("--config", type=Path, default=ROOT / "nube/config/entorno.env")
     parser.add_argument("--salida", type=Path, default=ROOT / "output/aws")
     parser.add_argument("--dry-run", action="store_true", help="No invoca AWS; puede crear el ZIP local.")
     parser.add_argument("--base-local", type=Path, default=ROOT / "data/_nube")
     parser.add_argument("--fecha-carga")
+    parser.add_argument("--corrida", choices=list(CORRIDAS),
+                        help="lanzar: completa (pasos 1 a 5, entrena) o carga (1, 2, 3 y 5, modelo vigente)")
     parser.add_argument("--timeout", type=int, default=3600)
     parser.add_argument("--horas", type=float, default=1, help="Duración total prevista, incluido arranque y apagado.")
     parser.add_argument("--max-usd", type=float, default=2, help="Umbral para la estimación parcial; NO es un límite de facturación.")
     parser.add_argument("--tarifas", type=Path, help="JSON de tarifas revisadas para calcular sin consultar Pricing API.")
     args = parser.parse_args()
-    if args.accion == "subir" and not args.fecha_carga:
-        parser.error("subir requiere --fecha-carga")
+    if args.accion in {"subir", "todo"} and not args.fecha_carga:
+        parser.error(f"{args.accion} requiere --fecha-carga")
+    if args.accion in {"lanzar", "todo"} and not args.corrida:
+        parser.error(f"{args.accion} requiere --corrida completa o --corrida carga")
     if args.timeout <= 0:
         parser.error("--timeout debe ser positivo")
     if not 0 < args.horas <= 24 or not 0 < args.max_usd < float("inf"):
         parser.error("Usar 0 < --horas <= 24 y --max-usd positivo y finito")
     try:
-        requiere_infra = args.accion not in {"preparar", "estimar", "bucket", "subir"}
+        requiere_infra = args.accion not in {"preparar", "estimar", "bucket", "subir", "catalogo"}
         deployment = Despliegue(cargar_config(args.config, requiere_infra), args.salida, args.dry_run)
         if args.accion == "subir":
             deployment.subir(args.base_local, args.fecha_carga)
@@ -392,10 +440,18 @@ def main():
         elif args.accion == "preparar":
             from cuenta_propia import preparar
             preparar(deployment)
+        elif args.accion == "catalogo":
+            from catalogo import catalogo
+            catalogo(deployment)
         elif args.accion == "estimar":
             estimar(deployment, args.horas, args.tarifas)
+        elif args.accion == "lanzar":
+            deployment.lanzar(args.corrida)
         elif args.accion == "esperar":
             deployment.esperar(args.timeout)
+        elif args.accion == "todo":
+            deployment.todo(args.base_local, args.fecha_carga, args.corrida, args.horas,
+                            args.max_usd, args.tarifas, args.timeout)
         else:
             getattr(deployment, args.accion)()
     except (ValueError, OSError, ErrorAWS, subprocess.SubprocessError, TimeoutError) as error:

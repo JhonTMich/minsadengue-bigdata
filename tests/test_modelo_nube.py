@@ -9,16 +9,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "nube"))
 
-from pyspark.sql import SparkSession, functions as F
-from sklearn.metrics import average_precision_score, roc_auc_score
+try:
+    from pyspark.sql import SparkSession, functions as F
+    from sklearn.metrics import average_precision_score, roc_auc_score
+except ImportError:
+    raise unittest.SkipTest("Requiere PySpark: correr dentro del contenedor Docker")
 
-from pipeline.metricas import auc, precision_promedio, umbral_por_costo
+from pipeline.metricas import auc, precision_promedio, umbral_por_costo, umbral_por_tasa
 from pipeline.paso_04_modelo import particion
 from pipeline.paso_05_alertas import anticipacion, completar_etiquetas
 from pipeline.variables import TODAS, con_fecha, etiquetar, variables_base
 
-GOLD = ROOT / "data/_nube/gold"
-
+# Gold completo si existe; si no, el de la muestra (scripts/crear_muestra.py y pasos 1 a 3).
+GOLD = next((g for g in (ROOT / "data/_nube/gold", ROOT / "data/muestra/gold") if (g / "panel_dengue_clima").exists()),
+            ROOT / "data/_nube/gold")
 
 class Metricas(unittest.TestCase):
     def test_igual_a_sklearn_con_empates(self):
@@ -34,8 +38,25 @@ class Metricas(unittest.TestCase):
         self.assertEqual(umbral_por_costo(etiquetas, puntajes, 10), 0.4)
         self.assertEqual(umbral_por_costo(etiquetas, puntajes, 0.5), 0.9)
 
+    def test_tope_de_alertas_con_empates(self):
+        puntajes = [0.1, 0.2, 0.7, 0.7, 0.9]
+        umbral = umbral_por_tasa(puntajes, 0.20)
+        self.assertGreater(umbral, 0.7)
+        self.assertLess(umbral, 0.71)
+        self.assertEqual(sum(p >= umbral for p in puntajes), 1)
+        self.assertGreater(sum(p >= 0.7 for p in puntajes), 1)
 
-@unittest.skipUnless((GOLD / "panel_dengue_clima").exists(), "Requiere Gold local en data/_nube")
+    def test_tope_no_inventa_alertas_si_ninguno_cumple(self):
+        umbral = umbral_por_tasa([1.0, 1.0, 0.8], 0)
+        self.assertGreater(umbral, 1)
+        self.assertFalse(any(p >= umbral for p in [1.0, 1.0, 0.8]))
+
+    def test_tope_rechaza_puntajes_invalidos(self):
+        for puntajes, tasa in [([], 0.2), ([float("nan")], 0.2), ([1.1], 0.2), ([0.5], -0.1)]:
+            with self.assertRaises(ValueError):
+                umbral_por_tasa(puntajes, tasa)
+
+@unittest.skipUnless((GOLD / "panel_dengue_clima").exists(), "Requiere Gold local en data/_nube o data/muestra")
 class SinFugaTemporal(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -67,7 +88,6 @@ class SinFugaTemporal(unittest.TestCase):
         base = etiquetar(con_fecha(self.panel.filter("ano <= 2015"), self.semanas))
         ultimas = base.filter("ano = 2015 and semana > 48").select("label").distinct().collect()
         self.assertEqual([r.label for r in ultimas], [None])
-
 
 class Alertas(unittest.TestCase):
     @classmethod

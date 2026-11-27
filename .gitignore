@@ -1,5 +1,7 @@
 data/*
 !data/muestra/
+data/muestra/*
+!data/muestra/raw/
 output/
 .ipynb_checkpoints/
 __pycache__/
@@ -16,6 +18,7 @@ env/
 !.env.example
 nube/config/entorno.env
 .aws/
+**/.pbi/
 *.pem
 *.zip
 spark-warehouse/

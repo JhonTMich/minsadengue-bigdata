@@ -107,7 +107,7 @@ Jupyter: `http://localhost:8888`. Spark UI: `http://localhost:4040` mientras exi
 2. Ejecutar `notebooks/cargaDatos.ipynb` completo. NASA se descarga y se reutilizan archivos existentes.
 3. Ejecutar `notebooks/modeloBase.ipynb` completo después de obtener Gold.
 
-El modelo requiere Gold; no existe actualmente lectura alternativa de una muestra CSV implementada. Las capas se sobrescriben: no ejecutar mediciones del pipeline en paralelo ni mientras se consulta la misma salida.
+El modelo requiere Gold. Para pruebas rápidas sin el CSV completo hay una muestra versionada en `data/muestra/` (ver más abajo). Las capas se sobrescriben: no ejecutar mediciones del pipeline en paralelo ni mientras se consulta la misma salida.
 
 ### Pipeline incremental (Ruta B, ejecución local)
 
@@ -124,6 +124,15 @@ docker compose exec -T -e PYTHONPATH=/home/jovyan/work/nube -w /home/jovyan/work
 
 La carga nueva se agrega repitiendo el primer comando con `--parte nueva --fecha-carga 2026-11-18` y luego los tres pasos. En Git Bash, anteponer `MSYS_NO_PATHCONV=1` para que no convierta las rutas del contenedor.
 
+**Muestra y pruebas.** `data/muestra/raw/` tiene la misma estructura con tres departamentos (Huánuco y Pasco, más Puno, que queda bajo el mínimo de 1 000 registros) y las dos fechas de carga, en 2 MB. Dengue conserva los casos por semana, pero lugar, edad y sexo son ficticios; se regenera con `python scripts/crear_muestra.py`. Los pasos aceptan `--base /home/jovyan/work/data/muestra` igual que con `data/_nube`; las capas generadas no se versionan. Las dependencias fuera del contenedor están en `requirements.txt`.
+
+```bash
+python -m unittest discover -s tests          # infraestructura y umbral; las de Spark se omiten sin PySpark
+docker compose exec -T -w /home/jovyan/work pyspark-notebook python -m unittest discover -s tests   # todas
+```
+
+GitHub Actions (`.github/workflows/pruebas.yml`) corre en cada push a `main` y en cada pull request: las pruebas de infraestructura con el despliegue simulado (`todo --dry-run`, sin credenciales) y los pasos 1 a 5 sobre la muestra con Spark 3.5.0, seguidos de todas las pruebas.
+
 Validación local (18/11/2026), con Spark 3.5.0 en `local[2]`:
 
 | Escenario | Resultado |
@@ -139,6 +148,10 @@ Validación local (18/11/2026), con Spark 3.5.0 en `local[2]`:
 Todavía no hay ejecución en la nube. Se utilizará una cuenta AWS propia, pues no se dispone de Learner Lab universitario. Se requieren AWS CLI con credenciales fuera del repositorio, un bucket S3 privado y versionado, roles y red para EMR, y Power BI Desktop con el driver ODBC de Athena. El código del despliegue está en la carpeta `nube/`. El desarrollo permanece local y el clúster se crea solo durante las ejecuciones para reducir el gasto.
 
 El punto 2 dispone de un [ejecutor y guía para cuenta propia](nube/infra/README.md): prepara roles y una VPC pública sin NAT Gateway, configura S3, sube datos/código y ejecuta Bronze → Silver → Gold en EMR/YARN con supervisión y solicitud de apagado. Incluye estimación de costos para 2 y 4 nodos usando AWS Pricing, revisión del costo parcial antes de crear el clúster, `--dry-run` y pruebas locales. La estimación no es un tope de facturación. Su ejecución real y las evidencias cloud siguen pendientes de configurar la cuenta; no se declaran como resultados medidos. Se conserva el alcance validado por años completos: histórico 2000–2023 y carga nueva de 2024.
+
+### Umbral de alerta del modelo cloud
+
+El paso 4 usa costo simétrico 1:1 por defecto, seleccionado con train hasta 2020 y validación 2021–2023. Para `contexto_clima` el umbral resultó 0.85. En validación sin brote vigente, la tasa de alertas fue 21.44 %, el recall 37.98 % y hubo 113 falsas alarmas frente a 128 semanas positivas detectadas. La tasa global de alertas fue 68.11 %. Es un compromiso académico con pérdida de sensibilidad, no una validación de utilidad sanitaria. El criterio se fija antes de evaluar 2024; los modelos anteriores requieren regenerar el paso 4 para incorporar el cambio. Ver [comparación, reproducción y bitácora](docs/umbral_alerta_validacion.md).
 
 ### Ejecuciones automáticas y evidencias
 
