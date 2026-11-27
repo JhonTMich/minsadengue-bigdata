@@ -350,14 +350,14 @@ class Despliegue:
         print("Evidencias agregadas del pipeline descargadas; originales y casos individuales no se descargan.")
 
     def esperar(self, timeout):
-        if not self.state.get("step_ids"):
+        if not self.state.get("step_ids") and not self.dry_run:
             raise ValueError("No hay pasos enviados para supervisar.")
         limite = time.monotonic() + timeout
         try:
             while True:
                 steps = self.estado()
                 estados = [s["Step"]["Status"]["State"] for s in steps]
-                completos = len(estados) == len(self.state["step_ids"]) and all(e == "COMPLETED" for e in estados)
+                completos = len(estados) == len(self.state.get("step_ids", [])) and all(e == "COMPLETED" for e in estados)
                 if self.dry_run or completos:
                     self.evidencias()
                     return
@@ -375,6 +375,27 @@ class Despliegue:
                     raise
                 print(f"No se pudo solicitar el apagado: {error}. Revisar EMR en la consola.", file=sys.stderr)
 
+    def todo(self, base, fecha, corrida, horas=1, max_usd=2, tarifas=None, timeout=3600):
+        """bucket, subir, cluster, lanzar, esperar y catalogo en orden. Se puede repetir:
+        reutiliza el clúster activo y no reenvía pasos ya enviados. Siempre solicita el apagado."""
+        self.bucket()
+        self.subir(base, fecha)
+        self.crear_cluster(horas, max_usd, tarifas)
+        try:
+            if self.state.get("step_ids") and not self.dry_run:
+                print("Pasos ya enviados a este clúster; se retoma la supervisión.")
+            else:
+                self.lanzar(corrida)
+        except BaseException:
+            try:
+                self.apagar()
+            except (ErrorAWS, OSError, ValueError, subprocess.SubprocessError) as error:
+                print(f"No se pudo solicitar el apagado: {error}. Revisar EMR en la consola.", file=sys.stderr)
+            raise
+        self.esperar(timeout)  # apaga el clúster al terminar, con o sin error
+        from catalogo import catalogo
+        catalogo(self)
+
     def apagar(self):
         self.identidad()
         cluster_id, cluster = self.cluster()
@@ -387,7 +408,8 @@ class Despliegue:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar", "catalogo"])
+    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar", "catalogo", "todo"],
+                        help="todo: bucket, subir, cluster, lanzar, esperar (apaga) y catalogo")
     parser.add_argument("--config", type=Path, default=ROOT / "nube/config/entorno.env")
     parser.add_argument("--salida", type=Path, default=ROOT / "output/aws")
     parser.add_argument("--dry-run", action="store_true", help="No invoca AWS; puede crear el ZIP local.")
@@ -400,10 +422,10 @@ def main():
     parser.add_argument("--max-usd", type=float, default=2, help="Umbral para la estimación parcial; NO es un límite de facturación.")
     parser.add_argument("--tarifas", type=Path, help="JSON de tarifas revisadas para calcular sin consultar Pricing API.")
     args = parser.parse_args()
-    if args.accion == "subir" and not args.fecha_carga:
-        parser.error("subir requiere --fecha-carga")
-    if args.accion == "lanzar" and not args.corrida:
-        parser.error("lanzar requiere --corrida completa o --corrida carga")
+    if args.accion in {"subir", "todo"} and not args.fecha_carga:
+        parser.error(f"{args.accion} requiere --fecha-carga")
+    if args.accion in {"lanzar", "todo"} and not args.corrida:
+        parser.error(f"{args.accion} requiere --corrida completa o --corrida carga")
     if args.timeout <= 0:
         parser.error("--timeout debe ser positivo")
     if not 0 < args.horas <= 24 or not 0 < args.max_usd < float("inf"):
@@ -427,6 +449,9 @@ def main():
             deployment.lanzar(args.corrida)
         elif args.accion == "esperar":
             deployment.esperar(args.timeout)
+        elif args.accion == "todo":
+            deployment.todo(args.base_local, args.fecha_carga, args.corrida, args.horas,
+                            args.max_usd, args.tarifas, args.timeout)
         else:
             getattr(deployment, args.accion)()
     except (ValueError, OSError, ErrorAWS, subprocess.SubprocessError, TimeoutError) as error:
