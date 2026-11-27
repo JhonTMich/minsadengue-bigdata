@@ -1,16 +1,23 @@
 # Tablero de dengue en Power BI
 
-Abrir `indicadores.pbip` en Power BI Desktop actualizado. El proyecto incluye
-el informe editable PBIR, el modelo semántico y las medidas DAX; no incluye datos
-importados, credenciales ni un archivo PBIX con resultados. Se mantiene en texto
-para revisar los cambios en Git.
+`indicadores.pbix` es el entregable: el tablero con los datos de Gold ya
+importados desde Athena (27/11/2026), listo para presentarse sin conexión.
+`indicadores.pbip` es el proyecto editable en texto (informe PBIR, modelo
+semántico y medidas DAX), sin datos ni credenciales, para revisar los cambios
+en Git. Al guardar el PBIP, Desktop puede reescribirlo en formato TMDL; no
+subir esa conversión si no hubo cambios reales (ver «Reproducir»).
 
-## Conexión pendiente a Athena
+## Conexión a Athena
 
-Depende de las vistas de `feature/athena-catalogo`, en particular
-`nube/sql/02_indicadores.sql`. No se incorporó esa rama a esta implementación.
-El responsable de AWS debe confirmar que el catálogo desplegado corresponde a
-esa versión y proporcionar acceso de consulta por un canal privado.
+Lee la vista `v_hechos_semanales` de `nube/sql/02_indicadores.sql`, creada con
+`python nube/infra/desplegar.py catalogo`.
+
+Power BI usa el usuario IAM `g13-powerbi`, de solo lectura, con la política
+`MinsaDenguePowerBISoloLectura`: consulta Athena en el workgroup `primary`, lee
+las tablas de `minsadengue_gold` en Glue, lee `datalake/gold/` y escribe solo
+en `athena/resultados/`. Se comprobó que no puede leer Raw ni Silver, escribir
+o borrar en Gold, borrar tablas de Glue ni usar EMR o IAM. Su clave vive solo
+en el perfil local de AWS CLI `minsadengue-bi`.
 
 Instalar el driver **Amazon Athena ODBC 2.x de 64 bits** y crear un DSN de usuario
 o sistema de 64 bits con estos valores del entorno del grupo:
@@ -23,7 +30,10 @@ o sistema de 64 bits con estos valores del entorno del grupo:
 | Base / Schema | `minsadengue_gold` |
 | Workgroup | `primary` |
 | Resultados S3 | `s3://minsadengue-g13-datalake/athena/resultados/` |
-| Autenticación | `IAM Profile`, perfil local exclusivo para BI |
+| Autenticación | `IAM Profile`, perfil `minsadengue-bi` |
+
+Usar el administrador ODBC **de 64 bits** (`C:\Windows\System32\odbcad32.exe`);
+el de 32 bits no muestra el driver de Athena.
 
 Configurar el perfil local con el acceso que entregue el responsable de AWS.
 No utilizar el perfil administrador ni escribir claves en el código M, PBIP,
@@ -96,23 +106,22 @@ están ocultos para evitar sumar puntajes o etiquetas por accidente.
 
 ## Comprobación con datos reales y entrega
 
-Después de conectar, confirmar claves únicas y conteos contra Athena. Para el
-despliegue reportado por el grupo, se esperan 24 776 filas del panel y 988 de
-2024; confirmar esos números con AWS antes de darlos por verificados aquí.
-En Desempeño, año 2024 y Sin brote vigente, la referencia comunicada es:
-483 observaciones, TP=34, FP=65, FN=69 y TN=315; recall 33,01 % y precisión
-34,34 %. El total sin desenlace comunicado es 76. Estos valores son referencias
-externas de conciliación, **no datos incrustados ni pruebas realizadas contra AWS**.
-Si difieren, revisar fuente, filtros y versión sin volver a ajustar el modelo.
+Verificado el 27/11/2026 contra Athena y en el tablero, con el modelo
+`v20261127T015304Z`: `v_hechos_semanales` tiene 24 776 filas (988 de 2024) y
+24 776 claves departamento-año-semana distintas. En Desempeño, año 2024 y Sin
+brote vigente: 483 observaciones, TP=34, FP=65 y FN=69; recall 33,01 % y
+precisión 34,34 %. Sin desenlace: 76. Coincide con la corrida de EMR. Si una
+carga nueva cambia estos números, revisar fuente, filtros y versión sin volver
+a ajustar el modelo.
 
 Para demostrar la nueva carga: capturar el tablero después del histórico,
 ejecutar la carga 2024 en el pipeline, actualizar Power BI y mostrar 2024 en
 los mismos visuales. Conservar capturas de las cuatro páginas, filtros, fecha
 de actualización y versión del modelo; no incluir credenciales.
 
-Al finalizar la importación y revisión, usar **Archivo → Guardar como** en
-Power BI Desktop y seleccionar **Power BI (.pbix)** para entregar
-`indicadores.pbix`. Conservar también el proyecto PBIP y sus dos carpetas.
+Para regenerar `indicadores.pbix`: abrir el PBIP, **Actualizar**, y usar
+**Archivo → Guardar como → Power BI (.pbix)**. Conservar también el proyecto
+PBIP y sus dos carpetas.
 Publicar en Power BI Service o programar refrescos requiere una configuración
 adicional; esta entrega prepara el informe para Desktop con actualización manual.
 
@@ -149,8 +158,8 @@ una versión diferente de `PRUEBA_NO_REAL`.
 
 Verificado durante el desarrollo: apertura nativa en Desktop, validación PBIR
 sin errores ni advertencias y pruebas DAX anteriores en el motor local de
-Power BI. Pendiente: importación real por ODBC, conciliación de resultados y
-guardado final del PBIX con datos.
+Power BI. Importación real por ODBC, conciliación con Athena y PBIX con datos:
+hechos el 27/11/2026.
 
 Referencias: [proyectos PBIP de Microsoft](https://learn.microsoft.com/en-us/power-bi/developer/projects/projects-overview),
 [parámetros ODBC de AWS](https://docs.aws.amazon.com/athena/latest/ug/odbc-v2-driver-main-connection-parameters.html)
