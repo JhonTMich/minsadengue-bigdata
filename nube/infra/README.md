@@ -217,6 +217,24 @@ afectada. Esta demostración agrega 2024 completo. No usar lotes de semanas suel
 del mismo año ni presentar este alcance como soporte de cualquier corrección
 histórica. La generalización del contrato incremental queda fuera del punto 2.
 
+## Catálogo de Gold en Athena
+
+Con Gold ya escrito en S3, sin clúster encendido:
+
+```bash
+python nube/infra/desplegar.py catalogo --dry-run
+python nube/infra/desplegar.py catalogo
+```
+
+Ejecuta `nube/sql/01_tablas.sql` (base de datos de Glue `GLUE_DATABASE`, por defecto
+`minsadengue_gold`, y cinco tablas externas de Gold) y `nube/sql/02_indicadores.sql`
+(la vista de hechos semanal y las cuatro vistas de indicadores). `panel_dengue_clima` y
+`alertas` usan *partition projection* por `ano`: una carga nueva queda visible sin
+`MSCK REPAIR`. Los resultados de Athena se guardan cifrados en
+`s3://<bucket>/athena/resultados/`. Al final cuenta las filas de cada tabla y vista y deja
+`output/aws/athena/catalogo.json`. Se puede repetir: las tablas usan `IF NOT EXISTS` y
+las vistas `CREATE OR REPLACE`.
+
 ## 6. Evidencias del entregable
 
 - `output/aws/ejecuciones/<cluster-id>/ejecucion.json`: configuración observada,

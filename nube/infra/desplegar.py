@@ -379,7 +379,7 @@ class Despliegue:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar"])
+    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar", "catalogo"])
     parser.add_argument("--config", type=Path, default=ROOT / "nube/config/entorno.env")
     parser.add_argument("--salida", type=Path, default=ROOT / "output/aws")
     parser.add_argument("--dry-run", action="store_true", help="No invoca AWS; puede crear el ZIP local.")
@@ -401,7 +401,7 @@ def main():
     if not 0 < args.horas <= 24 or not 0 < args.max_usd < float("inf"):
         parser.error("Usar 0 < --horas <= 24 y --max-usd positivo y finito")
     try:
-        requiere_infra = args.accion not in {"preparar", "estimar", "bucket", "subir"}
+        requiere_infra = args.accion not in {"preparar", "estimar", "bucket", "subir", "catalogo"}
         deployment = Despliegue(cargar_config(args.config, requiere_infra), args.salida, args.dry_run)
         if args.accion == "subir":
             deployment.subir(args.base_local, args.fecha_carga)
@@ -410,6 +410,9 @@ def main():
         elif args.accion == "preparar":
             from cuenta_propia import preparar
             preparar(deployment)
+        elif args.accion == "catalogo":
+            from catalogo import catalogo
+            catalogo(deployment)
         elif args.accion == "estimar":
             estimar(deployment, args.horas, args.tarifas)
         elif args.accion == "lanzar":
