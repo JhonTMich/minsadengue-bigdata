@@ -107,7 +107,7 @@ Jupyter: `http://localhost:8888`. Spark UI: `http://localhost:4040` mientras exi
 2. Ejecutar `notebooks/cargaDatos.ipynb` completo. NASA se descarga y se reutilizan archivos existentes.
 3. Ejecutar `notebooks/modeloBase.ipynb` completo después de obtener Gold.
 
-El modelo requiere Gold; no existe actualmente lectura alternativa de una muestra CSV implementada. Las capas se sobrescriben: no ejecutar mediciones del pipeline en paralelo ni mientras se consulta la misma salida.
+El modelo requiere Gold. Para pruebas rápidas sin el CSV completo hay una muestra versionada en `data/muestra/` (ver más abajo). Las capas se sobrescriben: no ejecutar mediciones del pipeline en paralelo ni mientras se consulta la misma salida.
 
 ### Pipeline incremental (Ruta B, ejecución local)
 
@@ -123,6 +123,15 @@ docker compose exec -T -e PYTHONPATH=/home/jovyan/work/nube -w /home/jovyan/work
 ```
 
 La carga nueva se agrega repitiendo el primer comando con `--parte nueva --fecha-carga 2026-11-18` y luego los tres pasos. En Git Bash, anteponer `MSYS_NO_PATHCONV=1` para que no convierta las rutas del contenedor.
+
+**Muestra y pruebas.** `data/muestra/raw/` tiene la misma estructura con tres departamentos (Huánuco y Pasco, más Puno, que queda bajo el mínimo de 1 000 registros) y las dos fechas de carga, en 2 MB. Dengue conserva los casos por semana, pero lugar, edad y sexo son ficticios; se regenera con `python scripts/crear_muestra.py`. Los pasos aceptan `--base /home/jovyan/work/data/muestra` igual que con `data/_nube`; las capas generadas no se versionan. Las dependencias fuera del contenedor están en `requirements.txt`.
+
+```bash
+python -m unittest discover -s tests          # infraestructura y umbral; las de Spark se omiten sin PySpark
+docker compose exec -T -w /home/jovyan/work pyspark-notebook python -m unittest discover -s tests   # todas
+```
+
+GitHub Actions (`.github/workflows/pruebas.yml`) corre en cada push a `main` y en cada pull request: las pruebas de infraestructura con el despliegue simulado (`todo --dry-run`, sin credenciales) y los pasos 1 a 5 sobre la muestra con Spark 3.5.0, seguidos de todas las pruebas.
 
 Validación local (18/11/2026), con Spark 3.5.0 en `local[2]`:
 
