@@ -1,0 +1,77 @@
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  infra:
+    name: Infraestructura AWS (simulada)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Sin PySpark, las pruebas de Spark se omiten; no usa credenciales ni recursos AWS.
+      - name: Pruebas sin dependencias externas
+        run: python -m unittest discover -s tests -v
+      - name: Simulación completa del despliegue
+        run: |
+          cp nube/config/entorno.example.env "$RUNNER_TEMP/entorno.env"
+          sed -i -e 's/^EXPECTED_ACCOUNT_ID=.*/EXPECTED_ACCOUNT_ID=123456789012/' \
+                 -e 's/^BUCKET=.*/BUCKET=minsadengue-ci/' \
+                 -e 's/^SUBNET_ID=.*/SUBNET_ID=subnet-0123abcd/' "$RUNNER_TEMP/entorno.env"
+          python nube/infra/desplegar.py todo --dry-run --config "$RUNNER_TEMP/entorno.env" \
+            --salida "$RUNNER_TEMP/aws" --base-local data/muestra \
+            --fecha-carga 2026-11-17 --corrida completa
+
+  pipeline:
+    name: Pipeline Spark sobre la muestra
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: ${{ github.workspace }}/nube
+      BASE: ${{ github.workspace }}/data/muestra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Pasos 1 a 5 (Bronze, Silver, Gold, modelo y alertas)
+        run: |
+          for paso in paso_01_bronze paso_02_silver paso_03_gold paso_04_modelo paso_05_alertas; do
+            echo "::group::$paso"
+            spark-submit --master "local[2]" --driver-memory 2g "nube/pipeline/$paso.py" --base "$BASE"
+            echo "::endgroup::"
+          done
+      - name: Segunda corrida sin datos nuevos
+        run: |
+          spark-submit --master "local[2]" nube/pipeline/paso_01_bronze.py --base "$BASE" | tee bronze.log
+          grep -q "Sin cargas nuevas en Raw" bronze.log
+      - name: Pruebas con Spark
+        run: python -m unittest discover -s tests -v
+      - name: Evidencias
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-muestra
+          path: data/muestra/evidencias/
+          if-no-files-found: ignore
