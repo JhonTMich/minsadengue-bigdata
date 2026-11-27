@@ -1,13 +1,16 @@
-"""Pruebas sin credenciales ni recursos cloud: python -m unittest discover -s nube/infra."""
+"""Pruebas sin credenciales ni recursos cloud: python -m unittest discover -s tests."""
 
 import contextlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "nube" / "infra"))
 
 import desplegar as d
 
@@ -15,7 +18,6 @@ CONFIG = {"AWS_REGION": "us-east-1", "EXPECTED_ACCOUNT_ID": "123456789012",
           "BUCKET": "minsadengue-prueba", "EMR_RELEASE": "emr-7.1.0", "INSTANCIA": "m5.xlarge",
           "NODOS_CORE": "1", "ROL_SERVICIO_EMR": "rol-lab", "PERFIL_INSTANCIA_EMR": "perfil-lab",
           "SUBNET_ID": "subnet-abc123", "IDLE_TIMEOUT": "900", "SHUFFLE_PARTITIONS": "8"}
-
 
 class PruebasInfra(unittest.TestCase):
     def setUp(self):
@@ -195,6 +197,35 @@ class PruebasInfra(unittest.TestCase):
             with self.assertRaises(TimeoutError):
                 self.deploy.esperar(1)
             apagar.assert_called_once()
+
+    def _todo_simulado(self, **lanzar):
+        nombres = ["bucket", "subir", "crear_cluster", "lanzar", "esperar", "apagar"]
+        mocks = {n: patch.object(self.deploy, n, **(lanzar if n == "lanzar" else {})).start() for n in nombres}
+        mocks["catalogo"] = patch("catalogo.catalogo").start()
+        self.addCleanup(patch.stopall)
+        return mocks
+
+    def test_todo_ejecuta_en_orden_y_cataloga(self):
+        m = self._todo_simulado()
+        orden = []
+        for nombre, mock in m.items():
+            mock.side_effect = lambda *a, n=nombre, **k: orden.append(n)
+        self.deploy.todo(self.base, "2024-12-31", "completa")
+        self.assertEqual(orden, ["bucket", "subir", "crear_cluster", "lanzar", "esperar", "catalogo"])
+
+    def test_todo_apaga_si_falla_el_lanzamiento(self):
+        m = self._todo_simulado(side_effect=ValueError("sin release"))
+        with self.assertRaisesRegex(ValueError, "sin release"):
+            self.deploy.todo(self.base, "2024-12-31", "completa")
+        m["apagar"].assert_called_once()
+        m["esperar"].assert_not_called()
+
+    def test_todo_retoma_sin_reenviar_pasos(self):
+        m = self._todo_simulado()
+        self.deploy.state["step_ids"] = ["s-a"]
+        self.deploy.todo(self.base, "2024-12-31", "carga")
+        m["lanzar"].assert_not_called()
+        m["esperar"].assert_called_once()
 
     def test_lanzamiento_no_se_duplica(self):
         self.deploy.state["step_ids"] = ["s-a", "s-b", "s-c"]

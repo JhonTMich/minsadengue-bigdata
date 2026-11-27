@@ -9,16 +9,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "nube"))
 
-from pyspark.sql import SparkSession, functions as F
-from sklearn.metrics import average_precision_score, roc_auc_score
+try:
+    from pyspark.sql import SparkSession, functions as F
+    from sklearn.metrics import average_precision_score, roc_auc_score
+except ImportError:
+    raise unittest.SkipTest("Requiere PySpark: correr dentro del contenedor Docker")
 
 from pipeline.metricas import auc, precision_promedio, umbral_por_costo, umbral_por_tasa
 from pipeline.paso_04_modelo import particion
 from pipeline.paso_05_alertas import anticipacion, completar_etiquetas
 from pipeline.variables import TODAS, con_fecha, etiquetar, variables_base
 
-GOLD = ROOT / "data/_nube/gold"
-
+# Gold completo si existe; si no, el de la muestra (scripts/crear_muestra.py y pasos 1 a 3).
+GOLD = next((g for g in (ROOT / "data/_nube/gold", ROOT / "data/muestra/gold") if (g / "panel_dengue_clima").exists()),
+            ROOT / "data/_nube/gold")
 
 class Metricas(unittest.TestCase):
     def test_igual_a_sklearn_con_empates(self):
@@ -52,8 +56,7 @@ class Metricas(unittest.TestCase):
             with self.assertRaises(ValueError):
                 umbral_por_tasa(puntajes, tasa)
 
-
-@unittest.skipUnless((GOLD / "panel_dengue_clima").exists(), "Requiere Gold local en data/_nube")
+@unittest.skipUnless((GOLD / "panel_dengue_clima").exists(), "Requiere Gold local en data/_nube o data/muestra")
 class SinFugaTemporal(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -85,7 +88,6 @@ class SinFugaTemporal(unittest.TestCase):
         base = etiquetar(con_fecha(self.panel.filter("ano <= 2015"), self.semanas))
         ultimas = base.filter("ano = 2015 and semana > 48").select("label").distinct().collect()
         self.assertEqual([r.label for r in ultimas], [None])
-
 
 class Alertas(unittest.TestCase):
     @classmethod
