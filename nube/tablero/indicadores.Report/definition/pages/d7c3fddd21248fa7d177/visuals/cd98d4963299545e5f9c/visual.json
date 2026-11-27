@@ -1,0 +1,99 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "cd98d4963299545e5f9c",
+  "position": {
+    "x": 248,
+    "y": 24,
+    "z": 7000,
+    "width": 1160,
+    "height": 48,
+    "tabOrder": 7000
+  },
+  "visual": {
+    "visualType": "textbox",
+    "visualContainerObjects": {
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "border": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "padding": [
+        {
+          "properties": {
+            "top": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            },
+            "bottom": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            },
+            "left": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            },
+            "right": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "paragraphs": [
+              {
+                "textRuns": [
+                  {
+                    "value": "Priorizar la revisión",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI",
+                      "fontSize": "28px",
+                      "color": "#162E43"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

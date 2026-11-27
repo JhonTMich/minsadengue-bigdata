@@ -1,0 +1,326 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "a5bea779995cff9af9cd",
+  "position": {
+    "x": 712,
+    "y": 296,
+    "z": 13000,
+    "width": 696,
+    "height": 518,
+    "tabOrder": 13000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "visualContainerObjects": {
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#FFFFFF'"
+                    }
+                  }
+                }
+              }
+            },
+            "transparency": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "border": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "padding": [
+        {
+          "properties": {
+            "top": {
+              "expr": {
+                "Literal": {
+                  "Value": "12D"
+                }
+              }
+            },
+            "bottom": {
+              "expr": {
+                "Literal": {
+                  "Value": "12D"
+                }
+              }
+            },
+            "left": {
+              "expr": {
+                "Literal": {
+                  "Value": "14D"
+                }
+              }
+            },
+            "right": {
+              "expr": {
+                "Literal": {
+                  "Value": "14D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Orden de revisión · semana de corte'"
+                }
+              }
+            },
+            "fontColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#162E43'"
+                    }
+                  }
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "14D"
+                }
+              }
+            },
+            "fontFamily": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Segoe UI Semibold'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Hechos"
+                    }
+                  },
+                  "Property": "Puesto de riesgo"
+                }
+              },
+              "queryRef": "Hechos.Puesto de riesgo",
+              "nativeQueryRef": "Puesto de riesgo"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Departamento"
+                    }
+                  },
+                  "Property": "departamento"
+                }
+              },
+              "queryRef": "Departamento.departamento",
+              "nativeQueryRef": "departamento"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Hechos"
+                    }
+                  },
+                  "Property": "Puntaje última semana"
+                }
+              },
+              "queryRef": "Hechos.Puntaje última semana",
+              "nativeQueryRef": "Puntaje última semana"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Hechos"
+                    }
+                  },
+                  "Property": "Casos última semana"
+                }
+              },
+              "queryRef": "Hechos.Casos última semana",
+              "nativeQueryRef": "Casos última semana"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Hechos"
+                    }
+                  },
+                  "Property": "Estado de alerta"
+                }
+              },
+              "queryRef": "Hechos.Estado de alerta",
+              "nativeQueryRef": "Estado de alerta"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "Hechos"
+                  }
+                },
+                "Property": "Puesto de riesgo"
+              }
+            },
+            "direction": "Ascending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "objects": {
+      "columnHeaders": [
+        {
+          "properties": {
+            "autoSizeColumnWidth": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "columnAdjustment": {
+              "expr": {
+                "Literal": {
+                  "Value": "'growToFit'"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "11D"
+                }
+              }
+            },
+            "fontColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#162E43'"
+                    }
+                  }
+                }
+              }
+            },
+            "backColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#E8EFF4'"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "values": [
+        {
+          "properties": {
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "11D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "total": [
+        {
+          "properties": {
+            "totals": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

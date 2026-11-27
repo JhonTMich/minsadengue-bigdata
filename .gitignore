@@ -16,6 +16,7 @@ env/
 !.env.example
 nube/config/entorno.env
 .aws/
+**/.pbi/
 *.pem
 *.zip
 spark-warehouse/

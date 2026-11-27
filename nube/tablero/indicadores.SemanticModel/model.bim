@@ -1,0 +1,557 @@
+{
+  "name": "indicadores",
+  "compatibilityLevel": 1601,
+  "model": {
+    "culture": "es-PE",
+    "sourceQueryCulture": "es-PE",
+    "defaultPowerBIDataSourceVersion": "powerBI_V3",
+    "dataAccessOptions": {
+      "legacyRedirects": true,
+      "returnErrorValuesAsNull": true
+    },
+    "tables": [
+      {
+        "name": "Hechos",
+        "columns": [
+          {
+            "name": "cod_dep",
+            "dataType": "string",
+            "sourceColumn": "cod_dep",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "departamento",
+            "dataType": "string",
+            "sourceColumn": "departamento",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "version_modelo",
+            "dataType": "string",
+            "sourceColumn": "version_modelo",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "fecha_carga",
+            "dataType": "string",
+            "sourceColumn": "fecha_carga",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "ano",
+            "dataType": "int64",
+            "sourceColumn": "ano",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "semana",
+            "dataType": "int64",
+            "sourceColumn": "semana",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "mes",
+            "dataType": "int64",
+            "sourceColumn": "mes",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "casos",
+            "dataType": "int64",
+            "sourceColumn": "casos",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "brote_actual",
+            "dataType": "int64",
+            "sourceColumn": "brote_actual",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "brote_observado",
+            "dataType": "int64",
+            "sourceColumn": "brote_observado",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "temp_media",
+            "dataType": "double",
+            "sourceColumn": "temp_media",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "hum_media",
+            "dataType": "double",
+            "sourceColumn": "hum_media",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "precip_total",
+            "dataType": "double",
+            "sourceColumn": "precip_total",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "umbral_q3",
+            "dataType": "double",
+            "sourceColumn": "umbral_q3",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "probabilidad",
+            "dataType": "double",
+            "sourceColumn": "probabilidad",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "umbral_alerta",
+            "dataType": "double",
+            "sourceColumn": "umbral_alerta",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "alerta",
+            "dataType": "boolean",
+            "sourceColumn": "alerta",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "dentro_entrenamiento",
+            "dataType": "boolean",
+            "sourceColumn": "dentro_entrenamiento",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "fecha_inicio",
+            "dataType": "dateTime",
+            "sourceColumn": "fecha_inicio",
+            "summarizeBy": "none",
+            "isHidden": true,
+            "formatString": "dd/MM/yyyy"
+          },
+          {
+            "name": "fecha_fin",
+            "dataType": "dateTime",
+            "sourceColumn": "fecha_fin",
+            "summarizeBy": "none",
+            "isHidden": true,
+            "formatString": "dd/MM/yyyy"
+          },
+          {
+            "name": "actualizado_utc",
+            "dataType": "dateTime",
+            "sourceColumn": "actualizado_utc",
+            "summarizeBy": "none",
+            "isHidden": true,
+            "formatString": "dd/MM/yyyy"
+          }
+        ],
+        "measures": [
+          {
+            "name": "Semana de corte",
+            "expression": "CALCULATE(MAX(Hechos[fecha_inicio]), ALLSELECTED(Departamento), KEEPFILTERS(NOT ISBLANK(Hechos[probabilidad])))",
+            "formatString": "dd MMM yyyy",
+            "displayFolder": "Operación",
+            "description": "Semana de corte"
+          },
+          {
+            "name": "Departamentos evaluados",
+            "expression": "VAR Fecha = [Semana de corte] RETURN IF(NOT ISBLANK(Fecha), COALESCE(CALCULATE(DISTINCTCOUNT(Hechos[cod_dep]), KEEPFILTERS(Semana[fecha_inicio] = Fecha), KEEPFILTERS(NOT ISBLANK(Hechos[probabilidad]))), 0))",
+            "formatString": "#,0",
+            "displayFolder": "Operación",
+            "description": "Departamentos evaluados"
+          },
+          {
+            "name": "Departamentos en alerta",
+            "expression": "VAR Fecha = [Semana de corte] RETURN IF(NOT ISBLANK(Fecha), COALESCE(CALCULATE(CALCULATE(DISTINCTCOUNT(Hechos[cod_dep]), KEEPFILTERS(Hechos[alerta] = TRUE())), KEEPFILTERS(Semana[fecha_inicio] = Fecha), KEEPFILTERS(NOT ISBLANK(Hechos[probabilidad]))), 0))",
+            "formatString": "#,0",
+            "displayFolder": "Operación",
+            "description": "Departamentos en alerta"
+          },
+          {
+            "name": "Departamentos en brote",
+            "expression": "VAR Fecha = [Semana de corte] RETURN IF(NOT ISBLANK(Fecha), COALESCE(CALCULATE(CALCULATE(DISTINCTCOUNT(Hechos[cod_dep]), KEEPFILTERS(Hechos[brote_actual] = 1)), KEEPFILTERS(Semana[fecha_inicio] = Fecha), KEEPFILTERS(NOT ISBLANK(Hechos[probabilidad]))), 0))",
+            "formatString": "#,0",
+            "displayFolder": "Operación",
+            "description": "Departamentos en brote"
+          },
+          {
+            "name": "Casos última semana",
+            "expression": "VAR Fecha = [Semana de corte] RETURN IF(NOT ISBLANK(Fecha), COALESCE(CALCULATE(SUM(Hechos[casos]), KEEPFILTERS(Semana[fecha_inicio] = Fecha), KEEPFILTERS(NOT ISBLANK(Hechos[probabilidad]))), 0))",
+            "formatString": "#,0",
+            "displayFolder": "Operación",
+            "description": "Casos última semana"
+          },
+          {
+            "name": "Suma Q3 última semana",
+            "expression": "VAR Fecha = [Semana de corte] RETURN IF(NOT ISBLANK(Fecha), COALESCE(CALCULATE(SUM(Hechos[umbral_q3]), KEEPFILTERS(Semana[fecha_inicio] = Fecha), KEEPFILTERS(NOT ISBLANK(Hechos[probabilidad]))), 0))",
+            "formatString": "#,0",
+            "displayFolder": "Operación",
+            "description": "Suma Q3 última semana"
+          },
+          {
+            "name": "Proporción en alerta",
+            "expression": "DIVIDE([Departamentos en alerta], [Departamentos evaluados])",
+            "formatString": "0.0%",
+            "displayFolder": "Operación",
+            "description": "Proporción en alerta"
+          },
+          {
+            "name": "Puntaje última semana",
+            "expression": "VAR Fecha = [Semana de corte] RETURN IF(NOT ISBLANK(Fecha), CALCULATE(MAX(Hechos[probabilidad]), KEEPFILTERS(Semana[fecha_inicio] = Fecha)))",
+            "formatString": "0.000",
+            "displayFolder": "Operación",
+            "description": "Puntaje de logística ponderada; no es una probabilidad calibrada."
+          },
+          {
+            "name": "Umbral de alerta",
+            "expression": "VAR Fecha = [Semana de corte] RETURN CALCULATE(MAX(Hechos[umbral_alerta]), KEEPFILTERS(Semana[fecha_inicio] = Fecha))",
+            "formatString": "0.00",
+            "displayFolder": "Operación",
+            "description": "Umbral de alerta"
+          },
+          {
+            "name": "Puesto de riesgo",
+            "expression": "IF(NOT ISBLANK([Puntaje última semana]), RANKX(FILTER(ALLSELECTED(Departamento[departamento]), NOT ISBLANK([Puntaje última semana])), [Puntaje última semana], , DESC, DENSE))",
+            "formatString": "#,0",
+            "displayFolder": "Operación",
+            "description": "Puesto de riesgo"
+          },
+          {
+            "name": "Estado de alerta",
+            "expression": "IF(ISBLANK([Puntaje última semana]), \"Sin puntaje\", IF([Departamentos en alerta] > 0, \"Alerta\", \"Sin alerta\"))",
+            "formatString": "",
+            "displayFolder": "Operación",
+            "description": "Estado de alerta"
+          },
+          {
+            "name": "Casos notificados",
+            "expression": "SUM(Hechos[casos])",
+            "formatString": "#,0",
+            "displayFolder": "Casos y canal",
+            "description": "Casos notificados"
+          },
+          {
+            "name": "Suma de canales Q3",
+            "expression": "SUM(Hechos[umbral_q3])",
+            "formatString": "#,0",
+            "displayFolder": "Casos y canal",
+            "description": "Suma de umbrales departamentales; no constituye un canal nacional estimado."
+          },
+          {
+            "name": "Razón casos sobre Q3",
+            "expression": "DIVIDE([Casos notificados], [Suma de canales Q3])",
+            "formatString": "0.00",
+            "displayFolder": "Casos y canal",
+            "description": "Razón casos sobre Q3"
+          },
+          {
+            "name": "Dptos. con alerta semanal",
+            "expression": "IF(CALCULATE(COUNTROWS(Hechos), KEEPFILTERS(NOT ISBLANK(Hechos[probabilidad]))) > 0, COALESCE(CALCULATE(DISTINCTCOUNT(Hechos[cod_dep]), KEEPFILTERS(Hechos[alerta] = TRUE())), 0))",
+            "formatString": "#,0",
+            "displayFolder": "Operación",
+            "description": "Dptos. con alerta semanal"
+          },
+          {
+            "name": "Dptos. en brote semanal",
+            "expression": "IF(CALCULATE(COUNTROWS(Hechos), KEEPFILTERS(NOT ISBLANK(Hechos[brote_actual]))) > 0, COALESCE(CALCULATE(DISTINCTCOUNT(Hechos[cod_dep]), KEEPFILTERS(Hechos[brote_actual] = 1)), 0))",
+            "formatString": "#,0",
+            "displayFolder": "Operación",
+            "description": "Dptos. en brote semanal"
+          },
+          {
+            "name": "Semanas evaluadas",
+            "expression": "VAR SinBrote = SELECTEDVALUE(Ambito[ambito], \"Sin brote vigente\") = \"Sin brote vigente\"\nRETURN COUNTROWS(FILTER(Hechos,\n    NOT ISBLANK(Hechos[probabilidad]) && NOT ISBLANK(Hechos[brote_observado]) &&\n    Hechos[dentro_entrenamiento] == FALSE() &&\n    (NOT SinBrote || Hechos[brote_actual] == 0) ))",
+            "formatString": "#,0",
+            "displayFolder": "Desempeño",
+            "description": "Semanas evaluadas"
+          },
+          {
+            "name": "Positivas observadas",
+            "expression": "VAR SinBrote = SELECTEDVALUE(Ambito[ambito], \"Sin brote vigente\") = \"Sin brote vigente\"\nRETURN COUNTROWS(FILTER(Hechos,\n    NOT ISBLANK(Hechos[probabilidad]) && NOT ISBLANK(Hechos[brote_observado]) &&\n    Hechos[dentro_entrenamiento] == FALSE() &&\n    (NOT SinBrote || Hechos[brote_actual] == 0) && Hechos[brote_observado] == 1))",
+            "formatString": "#,0",
+            "displayFolder": "Desempeño",
+            "description": "Positivas observadas"
+          },
+          {
+            "name": "Alertas evaluadas",
+            "expression": "VAR SinBrote = SELECTEDVALUE(Ambito[ambito], \"Sin brote vigente\") = \"Sin brote vigente\"\nRETURN COUNTROWS(FILTER(Hechos,\n    NOT ISBLANK(Hechos[probabilidad]) && NOT ISBLANK(Hechos[brote_observado]) &&\n    Hechos[dentro_entrenamiento] == FALSE() &&\n    (NOT SinBrote || Hechos[brote_actual] == 0) && Hechos[alerta] == TRUE()))",
+            "formatString": "#,0",
+            "displayFolder": "Desempeño",
+            "description": "Alertas evaluadas"
+          },
+          {
+            "name": "Aciertos",
+            "expression": "VAR SinBrote = SELECTEDVALUE(Ambito[ambito], \"Sin brote vigente\") = \"Sin brote vigente\"\nRETURN COUNTROWS(FILTER(Hechos,\n    NOT ISBLANK(Hechos[probabilidad]) && NOT ISBLANK(Hechos[brote_observado]) &&\n    Hechos[dentro_entrenamiento] == FALSE() &&\n    (NOT SinBrote || Hechos[brote_actual] == 0) && Hechos[alerta] == TRUE() && Hechos[brote_observado] == 1))",
+            "formatString": "#,0",
+            "displayFolder": "Desempeño",
+            "description": "Aciertos"
+          },
+          {
+            "name": "Falsas alarmas",
+            "expression": "VAR SinBrote = SELECTEDVALUE(Ambito[ambito], \"Sin brote vigente\") = \"Sin brote vigente\"\nRETURN COUNTROWS(FILTER(Hechos,\n    NOT ISBLANK(Hechos[probabilidad]) && NOT ISBLANK(Hechos[brote_observado]) &&\n    Hechos[dentro_entrenamiento] == FALSE() &&\n    (NOT SinBrote || Hechos[brote_actual] == 0) && Hechos[alerta] == TRUE() && Hechos[brote_observado] == 0))",
+            "formatString": "#,0",
+            "displayFolder": "Desempeño",
+            "description": "Falsas alarmas"
+          },
+          {
+            "name": "Positivas no detectadas",
+            "expression": "VAR SinBrote = SELECTEDVALUE(Ambito[ambito], \"Sin brote vigente\") = \"Sin brote vigente\"\nRETURN COUNTROWS(FILTER(Hechos,\n    NOT ISBLANK(Hechos[probabilidad]) && NOT ISBLANK(Hechos[brote_observado]) &&\n    Hechos[dentro_entrenamiento] == FALSE() &&\n    (NOT SinBrote || Hechos[brote_actual] == 0) && Hechos[alerta] == FALSE() && Hechos[brote_observado] == 1))",
+            "formatString": "#,0",
+            "displayFolder": "Desempeño",
+            "description": "Positivas no detectadas"
+          },
+          {
+            "name": "Negativas correctas",
+            "expression": "VAR SinBrote = SELECTEDVALUE(Ambito[ambito], \"Sin brote vigente\") = \"Sin brote vigente\"\nRETURN COUNTROWS(FILTER(Hechos,\n    NOT ISBLANK(Hechos[probabilidad]) && NOT ISBLANK(Hechos[brote_observado]) &&\n    Hechos[dentro_entrenamiento] == FALSE() &&\n    (NOT SinBrote || Hechos[brote_actual] == 0) && Hechos[alerta] == FALSE() && Hechos[brote_observado] == 0))",
+            "formatString": "#,0",
+            "displayFolder": "Desempeño",
+            "description": "Negativas correctas"
+          },
+          {
+            "name": "Recall",
+            "expression": "DIVIDE([Aciertos], [Positivas observadas])",
+            "formatString": "0.0%",
+            "displayFolder": "Desempeño",
+            "description": "Recall"
+          },
+          {
+            "name": "Precisión",
+            "expression": "DIVIDE([Aciertos], [Alertas evaluadas])",
+            "formatString": "0.0%",
+            "displayFolder": "Desempeño",
+            "description": "Precisión"
+          },
+          {
+            "name": "Alertas falsas",
+            "expression": "DIVIDE([Falsas alarmas], [Alertas evaluadas])",
+            "formatString": "0.0%",
+            "displayFolder": "Desempeño",
+            "description": "Alertas falsas"
+          },
+          {
+            "name": "Tasa de alertas evaluadas",
+            "expression": "DIVIDE([Alertas evaluadas], [Semanas evaluadas])",
+            "formatString": "0.0%",
+            "displayFolder": "Desempeño",
+            "description": "Tasa de alertas evaluadas"
+          },
+          {
+            "name": "FP por acierto",
+            "expression": "DIVIDE([Falsas alarmas], [Aciertos])",
+            "formatString": "0.00",
+            "displayFolder": "Desempeño",
+            "description": "FP por acierto"
+          },
+          {
+            "name": "Sin desenlace (total)",
+            "expression": "COUNTROWS(FILTER(Hechos, Hechos[dentro_entrenamiento] == FALSE() && NOT ISBLANK(Hechos[probabilidad]) && ISBLANK(Hechos[brote_observado])))",
+            "formatString": "#,0",
+            "displayFolder": "Control",
+            "description": "Sin desenlace (total)"
+          },
+          {
+            "name": "Ámbito evaluado",
+            "expression": "SELECTEDVALUE(Ambito[ambito], \"Sin brote vigente\")",
+            "formatString": "",
+            "displayFolder": "Control",
+            "description": "Ámbito evaluado"
+          },
+          {
+            "name": "Actualización UTC",
+            "expression": "MAX(Hechos[actualizado_utc])",
+            "formatString": "dd/MM/yyyy HH:mm",
+            "displayFolder": "Control",
+            "description": "Actualización UTC"
+          },
+          {
+            "name": "Versión del modelo",
+            "expression": "CONCATENATEX(FILTER(VALUES(Hechos[version_modelo]), NOT ISBLANK(Hechos[version_modelo])), Hechos[version_modelo], \", \")",
+            "formatString": "",
+            "displayFolder": "Control",
+            "description": "Versión del modelo"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Hechos",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": "let\n    Base = if Text.Select(pBaseDatos, {\"a\"..\"z\", \"0\"..\"9\", \"_\"}) = pBaseDatos\n        then pBaseDatos else error \"Nombre de base de datos no válido\",\n    Origen = Odbc.Query(\"dsn=\" & pDSN,\n        \"SELECT cod_dep, departamento, ano, semana, fecha_inicio, fecha_fin, mes, \" &\n        \"casos, temp_media, hum_media, precip_total, umbral_q3, brote_actual, \" &\n        \"probabilidad, alerta, brote_observado, umbral_alerta, version_modelo, \" &\n        \"dentro_entrenamiento, fecha_carga FROM \" & Base & \".v_hechos_semanales\"),\n    Tipos = Table.TransformColumnTypes(Origen, {\n        {\"cod_dep\", type text}, {\"departamento\", type text}, {\"ano\", Int64.Type},\n        {\"semana\", Int64.Type}, {\"fecha_inicio\", type date}, {\"fecha_fin\", type date},\n        {\"mes\", Int64.Type}, {\"casos\", Int64.Type}, {\"temp_media\", type number},\n        {\"hum_media\", type number}, {\"precip_total\", type number}, {\"umbral_q3\", type number},\n        {\"brote_actual\", Int64.Type}, {\"probabilidad\", type number}, {\"alerta\", type logical},\n        {\"brote_observado\", Int64.Type}, {\"umbral_alerta\", type number},\n        {\"version_modelo\", type text}, {\"dentro_entrenamiento\", type logical}, {\"fecha_carga\", type text}\n    }),\n    ConActualizacion = Table.AddColumn(Tipos, \"actualizado_utc\",\n        each DateTimeZone.RemoveZone(DateTimeZone.FixedUtcNow()), type datetime)\nin\n    ConActualizacion\n"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Departamento",
+        "columns": [
+          {
+            "name": "cod_dep",
+            "dataType": "string",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[cod_dep]",
+            "summarizeBy": "none",
+            "isHidden": true
+          },
+          {
+            "name": "departamento",
+            "dataType": "string",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[departamento]",
+            "summarizeBy": "none"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Departamento",
+            "mode": "import",
+            "source": {
+              "type": "calculated",
+              "expression": "DISTINCT(SELECTCOLUMNS(Hechos, \"cod_dep\", Hechos[cod_dep], \"departamento\", Hechos[departamento]))"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Semana",
+        "columns": [
+          {
+            "name": "fecha_inicio",
+            "dataType": "dateTime",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[fecha_inicio]",
+            "summarizeBy": "none",
+            "formatString": "dd/MM/yyyy"
+          },
+          {
+            "name": "ano",
+            "dataType": "int64",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[ano]",
+            "summarizeBy": "none"
+          },
+          {
+            "name": "semana",
+            "dataType": "int64",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[semana]",
+            "summarizeBy": "none"
+          },
+          {
+            "name": "mes",
+            "dataType": "int64",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[mes]",
+            "summarizeBy": "none"
+          },
+          {
+            "name": "AñoMes",
+            "dataType": "string",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[AñoMes]",
+            "summarizeBy": "none"
+          },
+          {
+            "name": "AñoSemana",
+            "dataType": "string",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[AñoSemana]",
+            "summarizeBy": "none",
+            "sortByColumn": "fecha_inicio"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Semana",
+            "mode": "import",
+            "source": {
+              "type": "calculated",
+              "expression": "DISTINCT(SELECTCOLUMNS(Hechos,\n        \"fecha_inicio\", Hechos[fecha_inicio], \"ano\", Hechos[ano], \"semana\", Hechos[semana],\n        \"mes\", Hechos[mes], \"AñoMes\", FORMAT(Hechos[ano], \"0000\") & \"-\" & FORMAT(Hechos[mes], \"00\"),\n        \"AñoSemana\", FORMAT(Hechos[ano], \"0000\") & \"-S\" & FORMAT(Hechos[semana], \"00\")))"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Ambito",
+        "columns": [
+          {
+            "name": "ambito",
+            "dataType": "string",
+            "type": "calculatedTableColumn",
+            "sourceColumn": "[ambito]",
+            "summarizeBy": "none"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Ambito",
+            "mode": "import",
+            "source": {
+              "type": "calculated",
+              "expression": "DATATABLE(\"ambito\", STRING, {{\"Sin brote vigente\"}, {\"Todas las semanas\"}})"
+            }
+          }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "Hechos_Departamento",
+        "fromTable": "Hechos",
+        "fromColumn": "cod_dep",
+        "toTable": "Departamento",
+        "toColumn": "cod_dep",
+        "fromCardinality": "many",
+        "toCardinality": "one",
+        "crossFilteringBehavior": "oneDirection"
+      },
+      {
+        "name": "Hechos_Semana",
+        "fromTable": "Hechos",
+        "fromColumn": "fecha_inicio",
+        "toTable": "Semana",
+        "toColumn": "fecha_inicio",
+        "fromCardinality": "many",
+        "toCardinality": "one",
+        "crossFilteringBehavior": "oneDirection"
+      }
+    ],
+    "expressions": [
+      {
+        "name": "pDSN",
+        "kind": "m",
+        "expression": "\"minsadengue_athena\" meta [IsParameterQuery=true, Type=\"Text\", IsParameterQueryRequired=true]"
+      },
+      {
+        "name": "pBaseDatos",
+        "kind": "m",
+        "expression": "\"minsadengue_gold\" meta [IsParameterQuery=true, Type=\"Text\", IsParameterQueryRequired=true]"
+      }
+    ],
+    "annotations": [
+      {
+        "name": "PBI_QueryOrder",
+        "value": "[\"pDSN\",\"pBaseDatos\",\"Hechos\"]"
+      }
+    ]
+  }
+}

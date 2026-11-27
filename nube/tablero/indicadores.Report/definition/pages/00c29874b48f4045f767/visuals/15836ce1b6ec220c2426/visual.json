@@ -1,0 +1,222 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "15836ce1b6ec220c2426",
+  "position": {
+    "x": 248,
+    "y": 296,
+    "z": 11000,
+    "width": 1160,
+    "height": 416,
+    "tabOrder": 11000
+  },
+  "visual": {
+    "visualType": "lineChart",
+    "visualContainerObjects": {
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#FFFFFF'"
+                    }
+                  }
+                }
+              }
+            },
+            "transparency": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "border": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "padding": [
+        {
+          "properties": {
+            "top": {
+              "expr": {
+                "Literal": {
+                  "Value": "12D"
+                }
+              }
+            },
+            "bottom": {
+              "expr": {
+                "Literal": {
+                  "Value": "12D"
+                }
+              }
+            },
+            "left": {
+              "expr": {
+                "Literal": {
+                  "Value": "14D"
+                }
+              }
+            },
+            "right": {
+              "expr": {
+                "Literal": {
+                  "Value": "14D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Evolución semanal · casos y suma de canales Q3'"
+                }
+              }
+            },
+            "fontColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#162E43'"
+                    }
+                  }
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "14D"
+                }
+              }
+            },
+            "fontFamily": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Segoe UI Semibold'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Semana"
+                    }
+                  },
+                  "Property": "fecha_inicio"
+                }
+              },
+              "queryRef": "Semana.fecha_inicio",
+              "nativeQueryRef": "fecha_inicio"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Hechos"
+                    }
+                  },
+                  "Property": "Casos notificados"
+                }
+              },
+              "queryRef": "Hechos.Casos notificados",
+              "nativeQueryRef": "Casos notificados"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Hechos"
+                    }
+                  },
+                  "Property": "Suma de canales Q3"
+                }
+              },
+              "queryRef": "Hechos.Suma de canales Q3",
+              "nativeQueryRef": "Suma de canales Q3"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "lineStyles": [
+        {
+          "properties": {
+            "lineChartType": {
+              "expr": {
+                "Literal": {
+                  "Value": "'linear'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
