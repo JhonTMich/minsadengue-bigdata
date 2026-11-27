@@ -104,9 +104,9 @@ class PruebasInfra(unittest.TestCase):
                          {"VolumeType": "gp3", "SizeInGB": 32})
         self.assertEqual(json.loads(self.deploy.state_path.read_text())["cluster_id"], "j-prueba")
         acciones = json.loads(args[args.index("--bootstrap-actions") + 1])
-        self.assertEqual(acciones, [{"Name": "instalar-numpy", "Path": "s3://minsadengue-prueba/codigo/bootstrap/def.sh"}])
+        self.assertEqual(acciones, [{"Name": "instalar-librerias-python", "Path": "s3://minsadengue-prueba/codigo/bootstrap/def.sh"}])
 
-    def test_no_crea_cluster_sin_bootstrap_de_numpy(self):
+    def test_no_crea_cluster_sin_bootstrap_de_python(self):
         self.deploy.state["release"] = "abc"
         with patch.object(self.deploy, "comprobar"), patch.object(self.deploy, "bucket_propio"), \
              patch.object(self.deploy, "aws") as aws:

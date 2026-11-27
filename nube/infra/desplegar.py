@@ -18,7 +18,7 @@ from errores import ErrorAWS
 
 ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = ROOT / "nube/pipeline"
-BOOTSTRAP = Path(__file__).resolve().parent / "bootstrap_numpy.sh"
+BOOTSTRAP = Path(__file__).resolve().parent / "bootstrap_python.sh"
 MODULOS = ["__init__.py", "comun.py", "variables.py", "metricas.py"]
 PASOS = ["paso_01_bronze.py", "paso_02_silver.py", "paso_03_gold.py", "paso_04_modelo.py", "paso_05_alertas.py"]
 FILES = MODULOS + PASOS
@@ -261,7 +261,7 @@ class Despliegue:
         if not self.state.get("release") and not self.dry_run:
             raise ValueError("Subir primero datos y código; así se evita crear un clúster sin entradas.")
         if not self.state.get("bootstrap") and not self.dry_run:
-            raise ValueError("Volver a ejecutar subir: falta el script que instala numpy para MLlib.")
+            raise ValueError("Volver a ejecutar subir: falta el script que instala numpy y pandas para MLlib.")
         if self.state.get("cluster_id"):
             actual, cluster = self.cluster()
             if self.dry_run or cluster["Status"]["State"] not in TERMINALES:
@@ -283,7 +283,7 @@ class Despliegue:
             "--ec2-attributes", json.dumps({"InstanceProfile": self.c["PERFIL_INSTANCIA_EMR"], "SubnetId": self.c["SUBNET_ID"]}),
             "--instance-groups", json.dumps(grupos), "--step-concurrency-level", "1",
             "--ebs-root-volume-size", str(ROOT_GIB),
-            "--bootstrap-actions", json.dumps([{"Name": "instalar-numpy",
+            "--bootstrap-actions", json.dumps([{"Name": "instalar-librerias-python",
                 "Path": f"s3://{self.c['BUCKET']}/{self.state.get('bootstrap', 'codigo/bootstrap/SIMULACION.sh')}"}]),
             "--log-uri", f"s3://{self.c['BUCKET']}/logs/emr/", "--no-termination-protected",
             "--auto-termination-policy", json.dumps({"IdleTimeout": int(self.c["IDLE_TIMEOUT"])}),
