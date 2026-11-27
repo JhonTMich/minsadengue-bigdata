@@ -1,17 +1,19 @@
-"""Pruebas sin credenciales: python -m unittest discover -s nube/infra."""
+"""Pruebas sin credenciales: python -m unittest discover -s tests."""
 
 import contextlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "nube" / "infra"))
+
 import catalogo as c
 import desplegar as d
 from test_desplegar import CONFIG
-
 
 class PruebasCatalogo(unittest.TestCase):
     def setUp(self):
@@ -77,7 +79,6 @@ class PruebasCatalogo(unittest.TestCase):
     def test_salida_del_cli_en_cp1252_se_lee(self):
         self.assertEqual(d.decodificar("'Código'".encode("cp1252")), "'Código'")
         self.assertEqual(d.decodificar("'Código'".encode("utf-8")), "'Código'")
-
 
 if __name__ == "__main__":
     unittest.main()

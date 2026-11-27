@@ -7,9 +7,13 @@ from datetime import date,timedelta
 ROOT=Path(__file__).resolve().parents[1]
 SPARK=Path(os.environ.get('SPARK_HOME','/usr/local/spark'))
 sys.path[:0]=[str(ROOT/'scripts'),str(SPARK/'python'),*map(str,(SPARK/'python/lib').glob('py4j-*-src.zip'))]
-from pyspark.sql import SparkSession,functions as F
+try:
+    from pyspark.sql import SparkSession,functions as F
+except ImportError:
+    raise unittest.SkipTest('Requiere PySpark: correr dentro del contenedor Docker')
 from ingenieria_variables import inicio_epi,calendario,validar_gold,preparar,CASOS,ESTACION,CLIMA
 
+@unittest.skipUnless((ROOT/'data/gold/panel_dengue_clima').exists(),'Requiere el Gold canónico en data/gold')
 class IngenieriaTemporal(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
