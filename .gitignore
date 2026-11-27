@@ -1,5 +1,7 @@
 data/*
 !data/muestra/
+data/muestra/*
+!data/muestra/raw/
 output/
 .ipynb_checkpoints/
 __pycache__/

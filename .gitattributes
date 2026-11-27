@@ -1,2 +1,4 @@
 # Los scripts se ejecutan en Linux (Learner Lab) y Git Bash.
 *.sh text eol=lf
+# La muestra se lee con Spark dentro del contenedor Linux.
+*.csv text eol=lf
