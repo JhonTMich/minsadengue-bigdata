@@ -7,7 +7,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.evaluar_umbral_validacion import comparar  # noqa: E402
 
-
 class PeriodoValidacion(unittest.TestCase):
     def datos(self):
         return {"anios": [2021, 2023], "entrenamiento_hasta": 2020,

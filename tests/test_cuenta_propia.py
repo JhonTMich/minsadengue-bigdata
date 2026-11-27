@@ -1,10 +1,13 @@
 import contextlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "nube" / "infra"))
 
 import costos
 import cuenta_propia as cuenta
@@ -18,7 +21,6 @@ def precios_ejemplo():
             "tarifas": {k: {"usd": v, "unidad": u} for k, v, u in [
                 ("ec2_hora", "0.2", "Hrs"), ("emr_hora", "0.05", "Hrs"),
                 ("ebs_gib_mes", "0.1", "GB-Mo"), ("ipv4_hora", "0.005", "Hrs")]}}
-
 
 class PruebasCuentaPropia(unittest.TestCase):
     def setUp(self):

@@ -147,8 +147,18 @@ Hay dos corridas:
 `completa`, el modelo se reentrenaría con 2024 y ese año dejaría de servir para
 evaluarlo. La corrida `carga` falla si todavía no hay un modelo vigente.
 
-Los cinco wrappers `01_...sh` a `04_...sh` y `99_apagar.sh` delegan al mismo
-ejecutor; `00_comprobar.sh` y `06_esperar.sh` completan el flujo. Son opcionales.
+Para no ir paso por paso, `todo` encadena `bucket`, `subir`, `cluster`, `lanzar`,
+`esperar` y `catalogo`:
+
+```bash
+python nube/infra/desplegar.py todo --fecha-carga 2026-11-17 --corrida completa --horas 1 --max-usd 2
+```
+
+Si se corta o falla, se puede repetir el mismo comando: reutiliza el clúster activo
+registrado en `estado.json`, no vuelve a subir archivos idénticos y, si los pasos ya
+se enviaron, solo retoma la supervisión. Si falla el envío de pasos o la espera,
+solicita el apagado del clúster. `comprobar` y `estimar` siguen siendo recomendables
+antes de la primera ejecución.
 
 Los pasos se envían juntos y en orden, con concurrencia 1. Cada paso usa
 `spark-submit --master yarn --deploy-mode cluster`, código versionado por SHA-256
@@ -217,6 +227,24 @@ afectada. Esta demostración agrega 2024 completo. No usar lotes de semanas suel
 del mismo año ni presentar este alcance como soporte de cualquier corrección
 histórica. La generalización del contrato incremental queda fuera del punto 2.
 
+## Catálogo de Gold en Athena
+
+Con Gold ya escrito en S3, sin clúster encendido:
+
+```bash
+python nube/infra/desplegar.py catalogo --dry-run
+python nube/infra/desplegar.py catalogo
+```
+
+Ejecuta `nube/sql/01_tablas.sql` (base de datos de Glue `GLUE_DATABASE`, por defecto
+`minsadengue_gold`, y cinco tablas externas de Gold) y `nube/sql/02_indicadores.sql`
+(la vista de hechos semanal y las cuatro vistas de indicadores). `panel_dengue_clima` y
+`alertas` usan *partition projection* por `ano`: una carga nueva queda visible sin
+`MSCK REPAIR`. Los resultados de Athena se guardan cifrados en
+`s3://<bucket>/athena/resultados/`. Al final cuenta las filas de cada tabla y vista y deja
+`output/aws/athena/catalogo.json`. Se puede repetir: las tablas usan `IF NOT EXISTS` y
+las vistas `CREATE OR REPLACE`.
+
 ## 6. Evidencias del entregable
 
 - `output/aws/ejecuciones/<cluster-id>/ejecucion.json`: configuración observada,
@@ -245,7 +273,7 @@ solo resultados agregados revisados, sin credenciales ni registros personales.
 - [AWS Price List Query API](https://docs.aws.amazon.com/cli/latest/reference/pricing/get-products.html).
 
 ```bash
-python -m unittest discover -s nube/infra -v
+python -m unittest discover -s tests -v
 ```
 
 Estas pruebas usan respuestas simuladas y archivos temporales. No acreditan
