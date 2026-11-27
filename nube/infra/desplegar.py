@@ -267,8 +267,8 @@ class Despliegue:
             escenario = next(e for e in informe["escenarios"] if e["nodos_totales"] == 1 + int(self.c["NODOS_CORE"]))
             if float(escenario["total_parcial_usd"]) > max_usd:
                 raise ValueError("La estimación parcial supera --max-usd. Revisar duración/nodos antes de crear EMR.")
-        grupos = [{"Name": tipo, "InstanceRole": tipo, "InstanceType": self.c["INSTANCIA"],
-                   "InstanceCount": cantidad, "Market": "ON_DEMAND", "EbsConfiguration": {
+        grupos = [{"Name": tipo, "InstanceGroupType": tipo, "InstanceType": self.c["INSTANCIA"],
+                   "InstanceCount": cantidad, "EbsConfiguration": {
                        "EbsBlockDeviceConfigs": [{"VolumeSpecification": {"VolumeType": "gp3", "SizeInGB": DATA_GIB},
                                                   "VolumesPerInstance": 1}]}}
                   for tipo, cantidad in (("MASTER", 1), ("CORE", int(self.c["NODOS_CORE"])))]

@@ -90,7 +90,10 @@ class PruebasInfra(unittest.TestCase):
         args = aws.call_args.args
         grupos = json.loads(args[args.index("--instance-groups") + 1])
         self.assertEqual(sum(g["InstanceCount"] for g in grupos), 2)
-        self.assertEqual([g["InstanceRole"] for g in grupos], ["MASTER", "CORE"])
+        self.assertEqual([g["InstanceGroupType"] for g in grupos], ["MASTER", "CORE"])
+        permitidas = {"Name", "InstanceGroupType", "BidPrice", "InstanceType", "InstanceCount",
+                      "CustomAmiId", "EbsConfiguration", "AutoScalingPolicy", "Configurations"}
+        self.assertTrue(all(set(g) <= permitidas for g in grupos))
         self.assertEqual(args[args.index("--step-concurrency-level") + 1], "1")
         self.assertIn("s3://minsadengue-prueba/logs/emr/", args)
         self.assertEqual(args[args.index("--ebs-root-volume-size") + 1], "15")
