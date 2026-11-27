@@ -59,7 +59,9 @@ class PruebasInfra(unittest.TestCase):
         self.assertEqual([p["Name"] for p in pasos], [f.removesuffix(".py") for f in d.PASOS])
         for paso in pasos:
             self.assertEqual(paso["ActionOnFailure"], "TERMINATE_CLUSTER")
-            args = paso["HadoopJarStep"]["Args"]
+            args = paso["Args"]
+            self.assertEqual(paso["Type"], "CUSTOM_JAR")
+            self.assertLessEqual(set(paso), {"Type", "Name", "ActionOnFailure", "Jar", "Args", "MainClass", "Properties", "LogUri", "EncryptionKeyArn"})
             self.assertEqual(args[args.index("--master") + 1], "yarn")
             self.assertEqual(args[args.index("--py-files") + 1], "s3://minsadengue-prueba/codigo/abc/pipeline.zip")
 
@@ -83,6 +85,7 @@ class PruebasInfra(unittest.TestCase):
 
     def test_creacion_registra_id_y_configura_dos_nodos_con_logs(self):
         self.deploy.state["release"] = "abc"
+        self.deploy.state["bootstrap"] = "codigo/bootstrap/def.sh"
         with patch.object(self.deploy, "comprobar"), patch.object(self.deploy, "bucket_propio"), \
              patch.object(d, "estimar", return_value={"escenarios": [{"nodos_totales": 2, "total_parcial_usd": "0.5"}]}), \
              patch.object(self.deploy, "aws", return_value={"ClusterId": "j-prueba"}) as aws:
@@ -100,9 +103,19 @@ class PruebasInfra(unittest.TestCase):
         self.assertEqual(grupos[0]["EbsConfiguration"]["EbsBlockDeviceConfigs"][0]["VolumeSpecification"],
                          {"VolumeType": "gp3", "SizeInGB": 32})
         self.assertEqual(json.loads(self.deploy.state_path.read_text())["cluster_id"], "j-prueba")
+        acciones = json.loads(args[args.index("--bootstrap-actions") + 1])
+        self.assertEqual(acciones, [{"Name": "instalar-numpy", "Path": "s3://minsadengue-prueba/codigo/bootstrap/def.sh"}])
+
+    def test_no_crea_cluster_sin_bootstrap_de_numpy(self):
+        self.deploy.state["release"] = "abc"
+        with patch.object(self.deploy, "comprobar"), patch.object(self.deploy, "bucket_propio"), \
+             patch.object(self.deploy, "aws") as aws:
+            with self.assertRaisesRegex(ValueError, "numpy"):
+                self.deploy.crear_cluster()
+        aws.assert_not_called()
 
     def test_no_duplica_cluster_activo(self):
-        self.deploy.state.update(release="abc", cluster_id="j-prueba")
+        self.deploy.state.update(release="abc", bootstrap="codigo/bootstrap/def.sh", cluster_id="j-prueba")
         with patch.object(self.deploy, "comprobar"), patch.object(self.deploy, "bucket_propio"), \
              patch.object(self.deploy, "cluster", return_value=("j-prueba", {"Status": {"State": "WAITING"}})), \
              patch.object(self.deploy, "aws") as aws:
@@ -111,6 +124,7 @@ class PruebasInfra(unittest.TestCase):
 
     def test_no_crea_cluster_si_estimacion_supera_umbral(self):
         self.deploy.state["release"] = "abc"
+        self.deploy.state["bootstrap"] = "codigo/bootstrap/def.sh"
         with patch.object(self.deploy, "comprobar"), patch.object(self.deploy, "bucket_propio"), \
              patch.object(d, "estimar", return_value={"escenarios": [{"nodos_totales": 2, "total_parcial_usd": "5"}]}), \
              patch.object(self.deploy, "aws") as aws:

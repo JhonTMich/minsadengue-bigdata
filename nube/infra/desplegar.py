@@ -18,6 +18,7 @@ from errores import ErrorAWS
 
 ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = ROOT / "nube/pipeline"
+BOOTSTRAP = Path(__file__).resolve().parent / "bootstrap_numpy.sh"
 MODULOS = ["__init__.py", "comun.py", "variables.py", "metricas.py"]
 PASOS = ["paso_01_bronze.py", "paso_02_silver.py", "paso_03_gold.py", "paso_04_modelo.py", "paso_05_alertas.py"]
 FILES = MODULOS + PASOS
@@ -76,12 +77,12 @@ def paquete():
 def pasos(bucket, release, shuffle, corrida):
     codigo = f"s3://{bucket}/codigo/{release}"
     return [
-        {"Name": nombre.removesuffix(".py"), "ActionOnFailure": "TERMINATE_CLUSTER",
-         "HadoopJarStep": {"Jar": "command-runner.jar", "Args": [
+        {"Type": "CUSTOM_JAR", "Name": nombre.removesuffix(".py"), "ActionOnFailure": "TERMINATE_CLUSTER",
+         "Jar": "command-runner.jar", "Args": [
              "spark-submit", "--master", "yarn", "--deploy-mode", "cluster",
              "--conf", "spark.yarn.submit.waitAppCompletion=true",
              "--py-files", f"{codigo}/pipeline.zip", f"{codigo}/{nombre}",
-             "--base", f"s3://{bucket}/datalake", "--shuffle", str(shuffle)]}}
+             "--base", f"s3://{bucket}/datalake", "--shuffle", str(shuffle)]}
         for nombre in CORRIDAS[corrida]
     ]
 
@@ -235,8 +236,10 @@ class Despliegue:
         (build / "pipeline.zip").write_bytes(datos)
         codigo = [(build / "pipeline.zip", f"codigo/{release}/pipeline.zip")]
         codigo += [(PIPELINE / nombre, f"codigo/{release}/{nombre}") for nombre in PASOS]
-        self.subir_inmutables(archivos + codigo)
+        bootstrap = f"codigo/bootstrap/{sha_archivo(BOOTSTRAP)}.sh"
+        self.subir_inmutables(archivos + codigo + [(BOOTSTRAP, bootstrap)])
         self.state["release"] = release
+        self.state["bootstrap"] = bootstrap
         self.state.setdefault("cargas", {})[fecha] = {key: sha_archivo(p) for p, key in archivos}
         self.guardar()
         print(f"Carga {fecha}; paquete {release}; base s3://{self.c['BUCKET']}/datalake")
@@ -257,6 +260,8 @@ class Despliegue:
         self.bucket_propio()
         if not self.state.get("release") and not self.dry_run:
             raise ValueError("Subir primero datos y código; así se evita crear un clúster sin entradas.")
+        if not self.state.get("bootstrap") and not self.dry_run:
+            raise ValueError("Volver a ejecutar subir: falta el script que instala numpy para MLlib.")
         if self.state.get("cluster_id"):
             actual, cluster = self.cluster()
             if self.dry_run or cluster["Status"]["State"] not in TERMINALES:
@@ -278,6 +283,8 @@ class Despliegue:
             "--ec2-attributes", json.dumps({"InstanceProfile": self.c["PERFIL_INSTANCIA_EMR"], "SubnetId": self.c["SUBNET_ID"]}),
             "--instance-groups", json.dumps(grupos), "--step-concurrency-level", "1",
             "--ebs-root-volume-size", str(ROOT_GIB),
+            "--bootstrap-actions", json.dumps([{"Name": "instalar-numpy",
+                "Path": f"s3://{self.c['BUCKET']}/{self.state.get('bootstrap', 'codigo/bootstrap/SIMULACION.sh')}"}]),
             "--log-uri", f"s3://{self.c['BUCKET']}/logs/emr/", "--no-termination-protected",
             "--auto-termination-policy", json.dumps({"IdleTimeout": int(self.c["IDLE_TIMEOUT"])}),
             "--tags", "Proyecto=minsadengue-bigdata", f"Bucket={self.c['BUCKET']}",
