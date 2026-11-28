@@ -1,0 +1,1010 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_ATHENA",
+      "label": "Amazon Athena",
+      "type": "datasource",
+      "pluginId": "grafana-athena-datasource",
+      "pluginName": "Amazon Athena"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "grafana-athena-datasource",
+      "name": "Amazon Athena"
+    }
+  ],
+  "uid": "minsadengue-alertas",
+  "title": "Alerta de brotes de dengue · Perú",
+  "description": "Grupo 13 · Gold en S3 consultado con Athena (minsadengue_gold).",
+  "tags": [
+    "dengue",
+    "athena",
+    "minsadengue"
+  ],
+  "timezone": "utc",
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "timepicker": {
+    "hidden": true
+  },
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "ano",
+        "label": "Año",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-athena-datasource",
+          "uid": "${DS_ATHENA}"
+        },
+        "query": {
+          "refId": "ano",
+          "rawSQL": "SELECT DISTINCT CAST(ano AS varchar) FROM minsadengue_gold.v_ranking_riesgo ORDER BY 1 DESC",
+          "format": 1,
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        },
+        "definition": "SELECT DISTINCT CAST(ano AS varchar) FROM minsadengue_gold.v_ranking_riesgo ORDER BY 1 DESC",
+        "refresh": 1,
+        "sort": 0,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "2025",
+          "value": "2025"
+        },
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "departamento",
+        "label": "Departamento",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-athena-datasource",
+          "uid": "${DS_ATHENA}"
+        },
+        "query": {
+          "refId": "departamento",
+          "rawSQL": "SELECT departamento FROM minsadengue_gold.dim_departamento ORDER BY 1",
+          "format": 1,
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        },
+        "definition": "SELECT departamento FROM minsadengue_gold.dim_departamento ORDER BY 1",
+        "refresh": 1,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "evaluacion",
+        "label": "Evaluación",
+        "type": "custom",
+        "hide": 0,
+        "query": "Sin brote vigente : sin_brote_actual,Todas las semanas : completo",
+        "current": {
+          "text": "Sin brote vigente",
+          "value": "sin_brote_actual"
+        },
+        "options": [
+          {
+            "text": "Sin brote vigente",
+            "value": "sin_brote_actual",
+            "selected": true
+          },
+          {
+            "text": "Todas las semanas",
+            "value": "completo",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Panorama de la semana de corte",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Semana de corte",
+      "description": "Última semana epidemiológica con puntaje del modelo en el año elegido.",
+      "datasource": {
+        "type": "grafana-athena-datasource",
+        "uid": "${DS_ATHENA}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "${DS_ATHENA}"
+          },
+          "format": 1,
+          "rawSQL": "SELECT ano AS \"Año\", max(semana) AS \"Semana de corte\"\nFROM minsadengue_gold.v_ranking_riesgo WHERE ano = ${ano} GROUP BY ano",
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Departamentos en la semana de corte",
+      "description": "Los 19 departamentos del panel. Alerta: puntaje sobre el umbral del modelo (brote en las 4 semanas siguientes). Brote vigente: casos sobre el canal endémico Q3 y al menos 5 casos.",
+      "datasource": {
+        "type": "grafana-athena-datasource",
+        "uid": "${DS_ATHENA}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 18,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "${DS_ATHENA}"
+          },
+          "format": 1,
+          "rawSQL": "SELECT departamentos_en_alerta AS \"En alerta\",\n       departamentos_en_brote AS \"En brote\",\n       departamentos_evaluados AS \"Evaluados\"\nFROM minsadengue_gold.v_departamentos_en_alerta\nWHERE ano = ${ano} AND semana = (SELECT max(semana) FROM minsadengue_gold.v_ranking_riesgo WHERE ano = ${ano})",
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "En alerta"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "En brote"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Evaluados"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "trend",
+      "title": "Departamentos en alerta y en brote por semana",
+      "description": "Conteo semanal sobre los 19 departamentos.",
+      "datasource": {
+        "type": "grafana-athena-datasource",
+        "uid": "${DS_ATHENA}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "${DS_ATHENA}"
+          },
+          "format": 1,
+          "rawSQL": "SELECT semana, departamentos_en_alerta AS \"En alerta\",\n       departamentos_en_brote AS \"En brote\"\nFROM minsadengue_gold.v_departamentos_en_alerta\nWHERE ano = ${ano} ORDER BY semana",
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        }
+      ],
+      "options": {
+        "xField": "semana",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "axisLabel": "Departamentos"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "En alerta"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "En brote"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "Ranking de riesgo",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Ranking de riesgo en la semana de corte",
+      "description": "Departamentos ordenados por el puntaje del modelo. El puntaje viene de una regresión logística ponderada: ordena el riesgo, pero no es una probabilidad calibrada.",
+      "datasource": {
+        "type": "grafana-athena-datasource",
+        "uid": "${DS_ATHENA}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "${DS_ATHENA}"
+          },
+          "format": 1,
+          "rawSQL": "SELECT puesto AS \"Puesto\", departamento AS \"Departamento\",\n       probabilidad AS \"Puntaje\",\n       CASE WHEN alerta THEN 'Sí' ELSE 'No' END AS \"Alerta\",\n       CASE WHEN brote_actual = 1 THEN 'Sí' ELSE 'No' END AS \"Brote vigente\",\n       casos AS \"Casos\", umbral_q3 AS \"Umbral Q3\"\nFROM minsadengue_gold.v_ranking_riesgo\nWHERE ano = ${ano} AND semana = (SELECT max(semana) FROM minsadengue_gold.v_ranking_riesgo WHERE ano = ${ano})\n  AND departamento IN (${departamento:singlequote})\nORDER BY puesto",
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Puntaje"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-YlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Umbral Q3"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alerta"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Sí": {
+                        "color": "orange",
+                        "index": 0
+                      },
+                      "No": {
+                        "color": "transparent",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Brote vigente"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Sí": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "No": {
+                        "color": "transparent",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Casos frente al canal endémico",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "trend",
+      "title": "Casos y umbral Q3 por semana",
+      "description": "Suma de los departamentos elegidos. Con varios departamentos, la línea Q3 es la suma de sus umbrales, no un canal nacional.",
+      "datasource": {
+        "type": "grafana-athena-datasource",
+        "uid": "${DS_ATHENA}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 14,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "${DS_ATHENA}"
+          },
+          "format": 1,
+          "rawSQL": "SELECT semana, sum(casos) AS \"Casos\", sum(umbral_q3) AS \"Umbral Q3\"\nFROM minsadengue_gold.v_casos_vs_canal\nWHERE ano = ${ano} AND departamento IN (${departamento:singlequote})\nGROUP BY semana ORDER BY semana",
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        }
+      ],
+      "options": {
+        "xField": "semana",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "axisLabel": "Casos"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Casos"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Umbral Q3"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Razón casos / Q3 en la semana de corte",
+      "description": "Mayor que 1: casos sobre el canal endémico. Vacío si el umbral es 0.",
+      "datasource": {
+        "type": "grafana-athena-datasource",
+        "uid": "${DS_ATHENA}"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 27,
+        "w": 10,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "${DS_ATHENA}"
+          },
+          "format": 1,
+          "rawSQL": "SELECT departamento AS \"Departamento\", casos AS \"Casos\",\n       umbral_q3 AS \"Umbral Q3\", razon_canal AS \"Casos / Q3\", zona AS \"Zona\"\nFROM minsadengue_gold.v_casos_vs_canal\nWHERE ano = ${ano} AND semana = (SELECT max(semana) FROM minsadengue_gold.v_ranking_riesgo WHERE ano = ${ano})\n  AND departamento IN (${departamento:singlequote})\nORDER BY razon_canal DESC NULLS LAST",
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Casos / Q3"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Umbral Q3"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Zona"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Brote": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "Sobre el canal, menos de 5 casos": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "Dentro del canal": {
+                        "color": "transparent",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Desempeño de las alertas",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Desempeño en semanas cerradas",
+      "description": "Semanas-departamento fuera del entrenamiento con desenlace observado. Recall = VP / (VP + FN); precisión = VP / (VP + FP). Vacío en años que el modelo usó para entrenar.",
+      "datasource": {
+        "type": "grafana-athena-datasource",
+        "uid": "${DS_ATHENA}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "${DS_ATHENA}"
+          },
+          "format": 1,
+          "rawSQL": "SELECT sum(semanas) AS \"Observaciones\",\n       sum(aciertos) AS \"VP\", sum(falsas_alarmas) AS \"FP\",\n       sum(brotes_no_detectados) AS \"FN\",\n       sum(semanas) - sum(aciertos) - sum(falsas_alarmas) - sum(brotes_no_detectados) AS \"VN\",\n       CAST(sum(aciertos) AS double) / NULLIF(sum(brotes), 0) AS \"Recall\",\n       CAST(sum(aciertos) AS double) / NULLIF(sum(alertas), 0) AS \"Precisión\"\nFROM minsadengue_gold.v_desempeno_alertas\nWHERE ano = ${ano} AND subconjunto = '${evaluacion}' AND NOT dentro_entrenamiento",
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Recall"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Precisión"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "type": "barchart",
+      "title": "Recall y precisión por mes",
+      "description": "Calculados con los conteos de cada mes, no promediando porcentajes.",
+      "datasource": {
+        "type": "grafana-athena-datasource",
+        "uid": "${DS_ATHENA}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "${DS_ATHENA}"
+          },
+          "format": 1,
+          "rawSQL": "SELECT element_at(ARRAY['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'], m) AS \"Mes\", recall AS \"Recall\", precision AS \"Precisión\"\nFROM (SELECT mes AS m,\n             CAST(sum(aciertos) AS double) / NULLIF(sum(brotes), 0) AS recall,\n             CAST(sum(aciertos) AS double) / NULLIF(sum(alertas), 0) AS precision\n      FROM minsadengue_gold.v_desempeno_alertas\n      WHERE ano = ${ano} AND subconjunto = '${evaluacion}' AND NOT dentro_entrenamiento\n      GROUP BY mes)\nORDER BY m",
+          "connectionArgs": {
+            "region": "__default",
+            "catalog": "__default",
+            "database": "__default",
+            "resultReuseEnabled": false,
+            "resultReuseMaxAgeInMinutes": 60
+          }
+        }
+      ],
+      "options": {
+        "xField": "Mes",
+        "orientation": "vertical",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Recall"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Precisión"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
