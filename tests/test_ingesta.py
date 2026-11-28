@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 RAIZ = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(RAIZ / "nube" / "demo"))
+sys.path.insert(0, str(RAIZ / "nube" / "ingesta"))
 sys.path.insert(0, str(RAIZ / "nube" / "infra"))
 
 import descargar_clima as clima
