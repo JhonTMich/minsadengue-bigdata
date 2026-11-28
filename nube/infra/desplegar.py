@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 import zipfile
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from costos import DATA_GIB, ROOT_GIB, estimar
@@ -74,7 +74,7 @@ def paquete():
     return datos, hashlib.sha256(datos).hexdigest()
 
 
-def pasos(bucket, release, shuffle, corrida):
+def pasos(bucket, release, shuffle, corrida, prefijo="datalake"):
     codigo = f"s3://{bucket}/codigo/{release}"
     return [
         {"Type": "CUSTOM_JAR", "Name": nombre.removesuffix(".py"), "ActionOnFailure": "TERMINATE_CLUSTER",
@@ -82,12 +82,12 @@ def pasos(bucket, release, shuffle, corrida):
              "spark-submit", "--master", "yarn", "--deploy-mode", "cluster",
              "--conf", "spark.yarn.submit.waitAppCompletion=true",
              "--py-files", f"{codigo}/pipeline.zip", f"{codigo}/{nombre}",
-             "--base", f"s3://{bucket}/datalake", "--shuffle", str(shuffle)]}
+             "--base", f"s3://{bucket}/{prefijo}", "--shuffle", str(shuffle)]}
         for nombre in CORRIDAS[corrida]
     ]
 
 
-def archivos_raw(base, fecha):
+def archivos_raw(base, fecha, prefijo="datalake"):
     if date.fromisoformat(fecha).isoformat() != fecha:
         raise ValueError("Usar fecha de carga AAAA-MM-DD.")
     archivos = []
@@ -96,7 +96,7 @@ def archivos_raw(base, fecha):
         candidatos = sorted(carpeta.glob("*.csv"))
         if not candidatos or any(p.stat().st_size == 0 or p.is_symlink() for p in candidatos):
             raise ValueError(f"Se requieren CSV no vacíos y sin enlaces en {carpeta}.")
-        archivos.extend((p, f"datalake/raw/{fuente}/fecha_carga={fecha}/{p.name}") for p in candidatos)
+        archivos.extend((p, f"{prefijo}/raw/{fuente}/fecha_carga={fecha}/{p.name}") for p in candidatos)
     return archivos
 
 
@@ -116,9 +116,17 @@ def sha_archivo(path):
     return digest.hexdigest()
 
 
+def validar_prefijo(prefijo):
+    # El rol EC2 de EMR solo puede escribir bajo datalake/.
+    if prefijo != "datalake" and not re.fullmatch(r"datalake(/[a-z0-9][a-z0-9_-]*)+", prefijo):
+        raise ValueError("El prefijo debe ser datalake o datalake/<carpeta>, en minúsculas.")
+    return prefijo
+
+
 class Despliegue:
-    def __init__(self, config, salida, dry_run=False):
+    def __init__(self, config, salida, dry_run=False, prefijo="datalake"):
         self.c = config
+        self.prefijo = validar_prefijo(prefijo)
         self.salida = salida
         self.dry_run = dry_run
         self.state_path = salida / "estado.json"
@@ -237,7 +245,7 @@ class Despliegue:
 
     def subir(self, base, fecha):
         self.identidad()
-        archivos = archivos_raw(base, fecha)
+        archivos = archivos_raw(base, fecha, self.prefijo)
         datos, release = paquete()
         build = self.salida / "paquetes" / release
         build.mkdir(parents=True, exist_ok=True)
@@ -250,7 +258,7 @@ class Despliegue:
         self.state["bootstrap"] = bootstrap
         self.state.setdefault("cargas", {})[fecha] = {key: sha_archivo(p) for p, key in archivos}
         self.guardar()
-        print(f"Carga {fecha}; paquete {release}; base s3://{self.c['BUCKET']}/datalake")
+        print(f"Carga {fecha}; paquete {release}; base s3://{self.c['BUCKET']}/{self.prefijo}")
 
     def cluster(self):
         cluster_id = self.state.get("cluster_id") or ("j-SIMULACION" if self.dry_run else None)
@@ -316,7 +324,7 @@ class Despliegue:
         if not release:
             raise ValueError("No se registró código subido.")
         resultado = self.aws("emr", "add-steps", "--cluster-id", cluster_id, "--steps",
-                            json.dumps(pasos(self.c["BUCKET"], release, self.c["SHUFFLE_PARTITIONS"], corrida)))
+                            json.dumps(pasos(self.c["BUCKET"], release, self.c["SHUFFLE_PARTITIONS"], corrida, self.prefijo)))
         if not self.dry_run:
             self.state["step_ids"] = resultado["StepIds"]
             self.state["corrida"] = corrida
@@ -345,7 +353,7 @@ class Despliegue:
     def evidencias(self):
         self.identidad()
         self.bucket_propio()
-        self.aws("s3", "sync", f"s3://{self.c['BUCKET']}/datalake/evidencias/",
+        self.aws("s3", "sync", f"s3://{self.c['BUCKET']}/{self.prefijo}/evidencias/",
                  str(self.salida / "pipeline"), "--only-show-errors")
         print("Evidencias agregadas del pipeline descargadas; originales y casos individuales no se descargan.")
 
@@ -408,8 +416,8 @@ class Despliegue:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar", "catalogo", "todo"],
-                        help="todo: bucket, subir, cluster, lanzar, esperar (apaga) y catalogo")
+    parser.add_argument("accion", choices=["preparar", "estimar", "comprobar", "bucket", "subir", "cluster", "lanzar", "estado", "esperar", "evidencias", "apagar", "catalogo", "todo", "benchmark", "costos"],
+                        help="todo: bucket, subir, cluster, lanzar, esperar (apaga) y catalogo; benchmark: histórico con 2 y 4 nodos en bases separadas; costos: costo real en Cost Explorer")
     parser.add_argument("--config", type=Path, default=ROOT / "nube/config/entorno.env")
     parser.add_argument("--salida", type=Path, default=ROOT / "output/aws")
     parser.add_argument("--dry-run", action="store_true", help="No invoca AWS; puede crear el ZIP local.")
@@ -421,17 +429,22 @@ def main():
     parser.add_argument("--horas", type=float, default=1, help="Duración total prevista, incluido arranque y apagado.")
     parser.add_argument("--max-usd", type=float, default=2, help="Umbral para la estimación parcial; NO es un límite de facturación.")
     parser.add_argument("--tarifas", type=Path, help="JSON de tarifas revisadas para calcular sin consultar Pricing API.")
+    parser.add_argument("--nodos", type=int, nargs="+", default=[2, 4], help="benchmark: nodos totales por configuración")
+    parser.add_argument("--desde", help="costos: primer día AAAA-MM-DD")
+    parser.add_argument("--hasta", help="costos: día siguiente al último, AAAA-MM-DD; por defecto mañana")
     args = parser.parse_args()
     if args.accion in {"subir", "todo"} and not args.fecha_carga:
         parser.error(f"{args.accion} requiere --fecha-carga")
     if args.accion in {"lanzar", "todo"} and not args.corrida:
         parser.error(f"{args.accion} requiere --corrida completa o --corrida carga")
+    if args.accion == "costos" and not args.desde:
+        parser.error("costos requiere --desde AAAA-MM-DD")
     if args.timeout <= 0:
         parser.error("--timeout debe ser positivo")
     if not 0 < args.horas <= 24 or not 0 < args.max_usd < float("inf"):
         parser.error("Usar 0 < --horas <= 24 y --max-usd positivo y finito")
     try:
-        requiere_infra = args.accion not in {"preparar", "estimar", "bucket", "subir", "catalogo"}
+        requiere_infra = args.accion not in {"preparar", "estimar", "bucket", "subir", "catalogo", "costos"}
         deployment = Despliegue(cargar_config(args.config, requiere_infra), args.salida, args.dry_run)
         if args.accion == "subir":
             deployment.subir(args.base_local, args.fecha_carga)
@@ -449,6 +462,14 @@ def main():
             deployment.lanzar(args.corrida)
         elif args.accion == "esperar":
             deployment.esperar(args.timeout)
+        elif args.accion == "benchmark":
+            from benchmark import benchmark
+            benchmark(deployment.c, args.base_local, args.fecha_carga or "2026-11-17", args.nodos,
+                      salida=args.salida / "benchmark", dry_run=args.dry_run, horas=args.horas, max_usd=args.max_usd, timeout=args.timeout)
+        elif args.accion == "costos":
+            from costos import costo_real
+            hasta = args.hasta or (date.today() + timedelta(days=1)).isoformat()
+            costo_real(deployment, date.fromisoformat(args.desde).isoformat(), date.fromisoformat(hasta).isoformat())
         elif args.accion == "todo":
             deployment.todo(args.base_local, args.fecha_carga, args.corrida, args.horas,
                             args.max_usd, args.tarifas, args.timeout)

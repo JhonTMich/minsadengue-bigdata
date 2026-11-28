@@ -245,6 +245,29 @@ Ejecuta `nube/sql/01_tablas.sql` (base de datos de Glue `GLUE_DATABASE`, por def
 `output/aws/athena/catalogo.json`. Se puede repetir: las tablas usan `IF NOT EXISTS` y
 las vistas `CREATE OR REPLACE`.
 
+## Benchmark y costo real
+
+```bash
+python nube/infra/desplegar.py benchmark --dry-run
+python nube/infra/desplegar.py benchmark
+python nube/infra/desplegar.py costos --desde 2026-11-26
+```
+
+`benchmark` corre la corrida `completa` del histórico (`--fecha-carga`, por defecto
+`2026-11-17`) con 2 y 4 nodos totales (`--nodos 2 4`). Cada configuración usa su propia
+base vacía, `s3://<bucket>/datalake/benchmark/<id>/n<nodos>/`, así que procesa todo
+desde Raw sin tocar el data lake principal ni su manifiesto. Las configuraciones corren
+una después de otra y la siguiente espera a que el clúster anterior esté `TERMINATED`:
+4 nodos m5.xlarge usan las 16 vCPU de la cuota. Deja `output/aws/benchmark/<id>/resultados.json`
+y `resultados.md` con arranque, segundos por paso, vida del clúster y costo estimado.
+Una sola repetición por configuración: con este volumen las diferencias pequeñas pueden
+ser ruido.
+
+`costos` consulta Cost Explorer (USD 0.01 por consulta) y deja
+`output/aws/costo_real.json` por servicio y por día. Cost Explorer se activa una vez en
+la consola de Billing y se actualiza con 24 a 48 horas de retraso. Incluye todo lo que
+haya en la cuenta, no solo este proyecto.
+
 ## 6. Evidencias del entregable
 
 - `output/aws/ejecuciones/<cluster-id>/ejecucion.json`: configuración observada,
