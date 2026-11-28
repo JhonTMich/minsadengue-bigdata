@@ -4,17 +4,25 @@ from pipeline.comun import (Cronometro, argumentos, cargas_en_raw, crear_spark, 
                             leer_manifiesto, registrar_en_manifiesto, ruta)
 
 FUENTES = {
-    "dengue": (";", ["departamento", "provincia", "distrito", "ubigeo", "ano", "semana",
-                     "diagnostic", "edad", "tipo_edad", "sexo"]),
-    "clima": (",", ["cod_dep", "departamento", "fecha", "T2M", "RH2M", "PRECTOTCORR"]),
+    "dengue": ["departamento", "provincia", "distrito", "ubigeo", "ano", "semana",
+               "diagnostic", "edad", "tipo_edad", "sexo"],
+    "clima": ["cod_dep", "departamento", "fecha", "T2M", "RH2M", "PRECTOTCORR"],
 }
 
 
+def separador(cabecera):
+    # El MINSA publicó hasta 2024 con ";" y desde el corte 2025 con "," y comillas.
+    return ";" if cabecera.count(";") > cabecera.count(",") else ","
+
+
 def ingestar_carga(spark, base, fuente, fecha_carga):
-    sep, requeridas = FUENTES[fuente]
+    requeridas = FUENTES[fuente]
+    carpeta = ruta(base, "raw", fuente, f"fecha_carga={fecha_carga}")
+    cabecera = spark.read.option("pathGlobFilter", "*.csv").text(carpeta).first()[0]
+    sep = separador(cabecera.lstrip("﻿"))
     df = (spark.read.option("pathGlobFilter", "*.csv")
-          .csv(ruta(base, "raw", fuente, f"fecha_carga={fecha_carga}"),
-               header=True, inferSchema=False, sep=sep))
+          .csv(carpeta, header=True, inferSchema=False, sep=sep, quote='"', encoding="UTF-8"))
+    df = df.toDF(*[c.lstrip("﻿").strip() for c in df.columns])
     faltantes = set(requeridas) - set(df.columns)
     if faltantes:
         raise ValueError(f"{fuente} {fecha_carga}: faltan columnas {sorted(faltantes)}")

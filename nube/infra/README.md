@@ -222,6 +222,23 @@ La nueva ejecución comparte el data lake y su manifiesto; procesa las cargas
 pendientes. Se crea un clúster nuevo si el anterior ya terminó. Conservar el mismo
 archivo de estado en todo el recorrido.
 
+## 6. Cargar un año nuevo publicado (2025)
+
+El MINSA publicó `datos_abiertos_vigilancia_dengue_2000_2025_0.csv`, con separador
+`,` y comillas (hasta 2024 usaba `;`) y la columna nueva `tipo_dx`. Bronze y
+`dividir_cargas.py` detectan el separador por la cabecera. El clima del año
+epidemiológico (29/12/2024 a 03/01/2026) se descarga de NASA POWER; los JSON
+originales quedan en la misma carga y se suben con ella.
+
+```bash
+python nube/demo/dividir_cargas.py --base data/_nube --parte nueva --anio-corte 2024 --fecha-carga 2026-11-28 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2025_0.csv
+python nube/demo/descargar_clima.py --base data/_nube --fecha-carga 2026-11-28 --anio 2025
+python nube/infra/desplegar.py todo --fecha-carga 2026-11-28 --corrida carga
+```
+
+Los años 2000–2024 del CSV nuevo son idénticos al anterior, por eso la carga solo
+lleva 2025.
+
 La implementación actual de dengue espera años completos dentro de cada carga
 afectada. Esta demostración agrega 2024 completo. No usar lotes de semanas sueltas
 del mismo año ni presentar este alcance como soporte de cualquier corrección
