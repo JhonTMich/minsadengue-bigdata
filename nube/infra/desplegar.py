@@ -96,6 +96,8 @@ def archivos_raw(base, fecha, prefijo="datalake"):
         candidatos = sorted(carpeta.glob("*.csv"))
         if not candidatos or any(p.stat().st_size == 0 or p.is_symlink() for p in candidatos):
             raise ValueError(f"Se requieren CSV no vacíos y sin enlaces en {carpeta}.")
+        # Las respuestas originales de la fuente (JSON de NASA POWER) viajan con su carga.
+        candidatos += sorted(p for p in carpeta.glob("*.json") if not p.is_symlink())
         archivos.extend((p, f"{prefijo}/raw/{fuente}/fecha_carga={fecha}/{p.name}") for p in candidatos)
     return archivos
 
