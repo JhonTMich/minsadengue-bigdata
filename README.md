@@ -3,7 +3,7 @@
 Proyecto académico de Big Data y Analítica de Datos, Ingeniería de Computación y Sistemas, Universidad Privada Antenor Orrego, periodo 2026-20. Grupo 13. 
 Docente: Ing. Armando Javier Caballero Alvarado.
 
-**Resultado actual:** el pipeline incremental está desplegado en AWS (S3, EMR, Glue Data Catalog y Athena) y Power BI lee Gold desde Athena. Recibió el histórico 2000–2023 y luego 2024 y 2025 como cargas nuevas; 2025 es la publicación real del MINSA, en un formato distinto, y llegó hasta las alertas sin reentrenar. En semanas sin brote vigente, el modelo de alerta obtiene AUC 0.689 en 2024 y 0.735 en 2025, año que nunca vio, pero con el umbral 0.85 genera muchas falsas alarmas en un año de pocos casos (precisión 0.145 en 2025). El clima no mejora de forma consistente al modelo. No se presenta el AUC global como prueba suficiente de alerta temprana.
+**Resultado actual:** el pipeline incremental está desplegado en AWS (S3, EMR, Glue Data Catalog y Athena) y un tablero de Grafana Cloud lee Gold desde Athena. Recibió el histórico 2000–2023 y luego 2024 y 2025 como cargas nuevas; 2025 es la publicación real del MINSA, en un formato distinto, y llegó hasta las alertas sin reentrenar. En semanas sin brote vigente, el modelo de alerta obtiene AUC 0.689 en 2024 y 0.735 en 2025, año que nunca vio, pero con el umbral 0.85 genera muchas falsas alarmas en un año de pocos casos (precisión 0.145 en 2025). El clima no mejora de forma consistente al modelo. No se presenta el AUC global como prueba suficiente de alerta temprana.
 
 ## Equipo y alcance
 
@@ -57,7 +57,7 @@ flowchart LR
     G --> Q[Glue Data Catalog y Athena: vistas de indicadores]
     AL --> Q
     DIM --> Q
-    Q --> T[Power BI]
+    Q --> T[Grafana Cloud]
 ```
 
 | Pieza | Desarrollo (local) | Despliegue (AWS) |
@@ -69,7 +69,7 @@ flowchart LR
 | Tablas analíticas | Panel, alertas y dimensiones en Gold | Las mismas, particionadas por año |
 | Catálogo | — | AWS Glue Data Catalog |
 | Consulta | — | Amazon Athena: 5 tablas y 5 vistas de indicadores |
-| Tablero | — | Power BI Desktop conectado a Athena por ODBC, con usuario de solo lectura |
+| Tablero | — | Grafana Cloud conectado a Athena con un rol IAM de solo lectura (Grafana Assume Role), en `nube/tablero/grafana/` |
 
 | Capa | Ruta bajo `data/` | Contrato |
 |---|---|---|
@@ -88,7 +88,7 @@ Se normalizan textos y ubigeos, tipan años y semanas, validan diagnóstico, sex
 
 En clima, `-999` y valores fuera de rangos físicos se convierten en nulos; se agregan semanas con siete días. Ambos conjuntos usan semanas de domingo a sábado, con semana 1 que contiene el 4 de enero. Gold verifica número de filas, conservación de casos y ausencia de clima nulo en los controles implementados.
 
-Los datos individuales permanecen fuera de Git; Silver descarta localidad, localcod y diresa, pero conserva otros atributos individuales. Gold solo contiene agregados. No se afirma anonimización absoluta ni se ha realizado una auditoría formal de reidentificación. El informe cita la Ley N.º 29733; la conformidad legal no queda demostrada por descartar columnas. En AWS el bucket es privado, con bloqueo de acceso público, cifrado SSE-S3 y versionado; EMR usa roles con permisos acotados al bucket y Power BI un usuario IAM de solo lectura. Las credenciales y el ID de la cuenta quedan fuera del repositorio. No es una auditoría de seguridad formal.
+Los datos individuales permanecen fuera de Git; Silver descarta localidad, localcod y diresa, pero conserva otros atributos individuales. Gold solo contiene agregados. No se afirma anonimización absoluta ni se ha realizado una auditoría formal de reidentificación. El informe cita la Ley N.º 29733; la conformidad legal no queda demostrada por descartar columnas. En AWS el bucket es privado, con bloqueo de acceso público, cifrado SSE-S3 y versionado; EMR usa roles con permisos acotados al bucket y Grafana asume un rol IAM de solo lectura, sin claves de acceso. Las credenciales y el ID de la cuenta quedan fuera del repositorio. No es una auditoría de seguridad formal.
 
 ## Instalación y reproducción
 
