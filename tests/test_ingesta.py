@@ -64,8 +64,10 @@ class PruebasIngesta(unittest.TestCase):
         from test_desplegar import CONFIG
         deploy = d.Despliegue(CONFIG.copy(), self.base / "e", dry_run=True)
         deploy.state.update({"cluster_id": "j-viejo", "step_ids": ["s-1"], "release": "abc"})
-        with patch.object(deploy, "identidad"), contextlib.redirect_stdout(io.StringIO()):
+        with patch.object(deploy, "identidad"), patch.object(deploy, "bucket_propio"), \
+             contextlib.redirect_stdout(io.StringIO()):
             deploy.lanzar("carga")
+            deploy.esperar(60)
         real = d.Despliegue(CONFIG.copy(), self.base / "r")
         real.state.update({"cluster_id": "j-viejo", "step_ids": ["s-1"], "release": "abc"})
         activo = {"Status": {"State": "WAITING"}}

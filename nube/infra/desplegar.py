@@ -342,6 +342,8 @@ class Despliegue:
         cluster_id, cluster = self.cluster()
         steps = [self.aws("emr", "describe-step", "--cluster-id", cluster_id, "--step-id", sid)
                  for sid in self.state.get("step_ids", [])]
+        if self.dry_run:
+            steps = [s for s in steps if "Step" in s]  # la simulación no recibe respuesta de AWS
         evidencia = {"fecha_utc": datetime.now(timezone.utc).isoformat(), "contexto": self.contexto,
                      "release": self.state.get("release"), "cluster": cluster, "steps": steps}
         if not self.dry_run:
