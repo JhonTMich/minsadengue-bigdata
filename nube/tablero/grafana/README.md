@@ -1,7 +1,8 @@
 # Tablero de dengue en Grafana
 
-Reemplaza al tablero de Power BI Desktop: Grafana Cloud corre en la nube y
-consulta Gold con Athena, sin nada instalado en la laptop.
+Grafana Cloud corre en la nube y consulta Gold con Athena, sin nada instalado
+en la laptop. Reemplazó al tablero de Power BI Desktop, que se retiró del
+repositorio el 28/11/2026 (queda en el historial de Git).
 
 `tablero_dengue.json` es el tablero importable. Lo genera
 `generar_tablero.py`; para cambiarlo, editar el generador y volver a correrlo:
@@ -65,10 +66,11 @@ carga de 2025 completó las etiquetas de las últimas semanas de 2024.
 Grafana no usa claves de acceso. Asume el rol IAM `MinsaDengueGrafanaAthena`,
 cuya relación de confianza solo admite la cuenta AWS de Grafana Cloud que
 indica el formulario y exige el External ID del stack (`sts:ExternalId`): otro
-stack de Grafana no puede asumirlo. El rol tiene la misma política de solo
-lectura que Power BI (`MinsaDenguePowerBISoloLectura`): consulta Athena, lee
-Glue y Gold y escribe solo en `athena/resultados/`. No hay credenciales en el
-repositorio ni en este JSON.
+stack de Grafana no puede asumirlo. El rol tiene la política de solo lectura
+`MinsaDengueBISoloLectura`: consulta Athena en el workgroup `primary`, lee las
+tablas de `minsadengue_gold` en Glue, lee `datalake/gold/` y escribe solo en
+`athena/resultados/`. No puede leer Raw ni Silver, escribir en Gold ni usar
+EMR o IAM. No hay credenciales en el repositorio ni en este JSON.
 
 Para crear el rol, desplegar en el formulario «How to create an IAM role for
 grafana to assume», usar la cuenta y el External ID que muestra y adjuntar la

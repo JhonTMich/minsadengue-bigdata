@@ -88,7 +88,7 @@ Se normalizan textos y ubigeos, tipan años y semanas, validan diagnóstico, sex
 
 En clima, `-999` y valores fuera de rangos físicos se convierten en nulos; se agregan semanas con siete días. Ambos conjuntos usan semanas de domingo a sábado, con semana 1 que contiene el 4 de enero. Gold verifica número de filas, conservación de casos y ausencia de clima nulo en los controles implementados.
 
-Los datos individuales permanecen fuera de Git; Silver descarta localidad, localcod y diresa, pero conserva otros atributos individuales. Gold solo contiene agregados. No se afirma anonimización absoluta ni se ha realizado una auditoría formal de reidentificación. El informe cita la Ley N.º 29733; la conformidad legal no queda demostrada por descartar columnas. En AWS el bucket es privado, con bloqueo de acceso público, cifrado SSE-S3 y versionado; EMR usa roles con permisos acotados al bucket y Power BI un usuario IAM de solo lectura. Las credenciales y el ID de la cuenta quedan fuera del repositorio. No es una auditoría de seguridad formal.
+Los datos individuales permanecen fuera de Git; Silver descarta localidad, localcod y diresa, pero conserva otros atributos individuales. Gold solo contiene agregados. No se afirma anonimización absoluta ni se ha realizado una auditoría formal de reidentificación. El informe cita la Ley N.º 29733; la conformidad legal no queda demostrada por descartar columnas. En AWS el bucket es privado, con bloqueo de acceso público, cifrado SSE-S3 y versionado; EMR usa roles con permisos acotados al bucket y Grafana asume un rol IAM de solo lectura, sin claves de acceso. Las credenciales y el ID de la cuenta quedan fuera del repositorio. No es una auditoría de seguridad formal.
 
 ## Instalación y reproducción
 
