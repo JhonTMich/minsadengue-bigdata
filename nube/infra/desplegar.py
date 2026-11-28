@@ -282,7 +282,10 @@ class Despliegue:
             raise ValueError("Volver a ejecutar subir: falta el script que instala numpy y pandas para MLlib.")
         if self.state.get("cluster_id"):
             actual, cluster = self.cluster()
-            if self.dry_run or cluster["Status"]["State"] not in TERMINALES:
+            if self.dry_run:
+                # La simulación no consulta AWS: muestra el caso habitual, el clúster anterior ya apagado.
+                print(f"Simulación: si {actual} sigue activo se reutiliza; si terminó, se crea uno nuevo.")
+            elif cluster["Status"]["State"] not in TERMINALES:
                 print(f"Clúster existente: {actual}; no se crea otro.")
                 return
         informe = estimar(self, horas, tarifas)
@@ -320,7 +323,7 @@ class Despliegue:
         cluster_id, cluster = self.cluster()
         if not self.dry_run and cluster["Status"]["State"] not in {"STARTING", "BOOTSTRAPPING", "RUNNING", "WAITING"}:
             raise ValueError("El clúster ya está terminando o terminó. Crear uno nuevo.")
-        if self.state.get("step_ids"):
+        if self.state.get("step_ids") and not self.dry_run:
             raise ValueError("Ya se enviaron pasos a este clúster. Consultar estado/esperar; no reenviar.")
         release = self.state.get("release") or (paquete()[1] if self.dry_run else None)
         if not release:

@@ -1,10 +1,13 @@
 """Pruebas sin Spark ni red: python -m unittest discover -s tests."""
 
+import contextlib
+import io
 import sys
 import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "nube" / "demo"))
@@ -56,6 +59,19 @@ class PruebasIngesta(unittest.TestCase):
         serie = {v: {"20250101": 1.0, "20250102": 2.0, "20250103": -999} for v in clima.VARIABLES}
         filas = clima.filas("01", "AMAZONAS", {"properties": {"parameter": serie}}, desde, hasta)
         self.assertEqual(filas[-1], ["01", "AMAZONAS", "20250103", -999, -999, -999])
+
+    def test_simulacion_con_estado_de_la_corrida_anterior(self):
+        from test_desplegar import CONFIG
+        deploy = d.Despliegue(CONFIG.copy(), self.base / "e", dry_run=True)
+        deploy.state.update({"cluster_id": "j-viejo", "step_ids": ["s-1"], "release": "abc"})
+        with patch.object(deploy, "identidad"), contextlib.redirect_stdout(io.StringIO()):
+            deploy.lanzar("carga")
+        real = d.Despliegue(CONFIG.copy(), self.base / "r")
+        real.state.update({"cluster_id": "j-viejo", "step_ids": ["s-1"], "release": "abc"})
+        activo = {"Status": {"State": "WAITING"}}
+        with patch.object(real, "identidad"), patch.object(real, "cluster", return_value=("j-viejo", activo)), \
+             self.assertRaises(ValueError):
+            real.lanzar("carga")
 
     def test_raw_sube_tambien_los_json_originales(self):
         for fuente in ("dengue", "clima"):
