@@ -2,7 +2,7 @@
 
 Estos comandos cubren el punto 2 del proyecto: bucket S3 privado, cifrado y
 versionado; clúster EMR; Bronze, Silver, Gold, modelo MLlib y alertas en AWS.
-Reutilizan el pipeline local sin modificar sus transformaciones. Athena y Power BI
+Reutilizan el pipeline local sin modificar sus transformaciones. Athena y Grafana
 se configuran aparte.
 
 Estado: implementación probada sin recursos AWS. Para cerrar el punto 2 faltan
@@ -13,7 +13,7 @@ Learner Lab universitario; el proyecto usará una cuenta propia.
 
 Se desarrolla y prueba con Spark local. EMR se crea solo durante las ejecuciones
 reales y se termina al finalizar. S3 conserva las capas, modelos y evidencias;
-Athena/Power BI podrán consultar Gold sin mantener el clúster encendido. AWS
+Athena y Grafana podrán consultar Gold sin mantener el clúster encendido. AWS
 Emulator es opcional para probar APIs; no acredita ejecución cloud del pipeline.
 
 1. Crear o elegir una sola cuenta AWS para el proyecto. Revisar créditos, plan de

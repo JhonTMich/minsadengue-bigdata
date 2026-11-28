@@ -1,5 +1,5 @@
--- Vistas de indicadores para Power BI (Athena / Trino).
--- {{BASE_DATOS}} lo reemplaza `desplegar.py catalogo`. Power BI lee solo estas vistas.
+-- Vistas de indicadores para el tablero de Grafana (Athena / Trino).
+-- {{BASE_DATOS}} lo reemplaza `desplegar.py catalogo`. Grafana lee solo estas vistas.
 
 CREATE OR REPLACE VIEW {{BASE_DATOS}}.v_hechos_semanales AS
 SELECT

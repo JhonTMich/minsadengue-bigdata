@@ -3,7 +3,7 @@
 Proyecto académico de Big Data y Analítica de Datos, Ingeniería de Computación y Sistemas, Universidad Privada Antenor Orrego, periodo 2026-20. Grupo 13. 
 Docente: Ing. Armando Javier Caballero Alvarado.
 
-**Resultado actual:** el pipeline incremental está desplegado en AWS (S3, EMR, Glue Data Catalog y Athena) y Power BI lee Gold desde Athena. Recibió el histórico 2000–2023 y luego 2024 y 2025 como cargas nuevas; 2025 es la publicación real del MINSA, en un formato distinto, y llegó hasta las alertas sin reentrenar. En semanas sin brote vigente, el modelo de alerta obtiene AUC 0.689 en 2024 y 0.735 en 2025, año que nunca vio, pero con el umbral 0.85 genera muchas falsas alarmas en un año de pocos casos (precisión 0.145 en 2025). El clima no mejora de forma consistente al modelo. No se presenta el AUC global como prueba suficiente de alerta temprana.
+**Resultado actual:** el pipeline incremental está desplegado en AWS (S3, EMR, Glue Data Catalog y Athena) y un tablero de Grafana Cloud lee Gold desde Athena. Recibió el histórico 2000–2023 y luego 2024 y 2025 como cargas nuevas; 2025 es la publicación real del MINSA, en un formato distinto, y llegó hasta las alertas sin reentrenar. En semanas sin brote vigente, el modelo de alerta obtiene AUC 0.689 en 2024 y 0.735 en 2025, año que nunca vio, pero con el umbral 0.85 genera muchas falsas alarmas en un año de pocos casos (precisión 0.145 en 2025). El clima no mejora de forma consistente al modelo. No se presenta el AUC global como prueba suficiente de alerta temprana.
 
 ## Equipo y alcance
 
@@ -57,7 +57,7 @@ flowchart LR
     G --> Q[Glue Data Catalog y Athena: vistas de indicadores]
     AL --> Q
     DIM --> Q
-    Q --> T[Power BI]
+    Q --> T[Grafana Cloud]
 ```
 
 | Pieza | Desarrollo (local) | Despliegue (AWS) |
@@ -69,7 +69,7 @@ flowchart LR
 | Tablas analíticas | Panel, alertas y dimensiones en Gold | Las mismas, particionadas por año |
 | Catálogo | — | AWS Glue Data Catalog |
 | Consulta | — | Amazon Athena: 5 tablas y 5 vistas de indicadores |
-| Tablero | — | Power BI Desktop conectado a Athena por ODBC, con usuario de solo lectura |
+| Tablero | — | Grafana Cloud conectado a Athena con un rol IAM de solo lectura (Grafana Assume Role), en `nube/tablero/grafana/` |
 
 | Capa | Ruta bajo `data/` | Contrato |
 |---|---|---|
