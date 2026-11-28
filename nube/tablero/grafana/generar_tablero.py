@@ -104,10 +104,10 @@ def stat(color="blue", unidad="none", decimales=0, umbrales=None):
                          "thresholds": {"mode": "absolute", "steps": pasos}}, "overrides": []}
 
 
-def opciones_stat(campos=""):
+def opciones_stat(campos="", orientacion="horizontal"):
     return {"reduceOptions": {"calcs": ["lastNotNull"], "fields": campos, "values": False},
             "colorMode": "background", "graphMode": "none", "textMode": "value_and_name",
-            "justifyMode": "center", "orientation": "horizontal"}
+            "justifyMode": "center", "orientation": orientacion}
 
 
 def color_texto(campo, colores):
@@ -127,6 +127,10 @@ def panel_trend(id_, titulo, clave, pos, descripcion, colores, eje):
     overrides = [{"matcher": {"id": "byName", "options": n},
                   "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": c}}]}
                  for n, c in colores.items()]
+    overrides.append({"matcher": {"id": "byName", "options": "semana"},
+                      "properties": [{"id": "custom.axisLabel", "value": "Semana epidemiológica"},
+                                     {"id": "displayName", "value": "Semana"},
+                                     {"id": "decimals", "value": 0}, {"id": "min", "value": 1}]})
     campos = {"defaults": {"custom": {"lineWidth": 2, "fillOpacity": 10, "showPoints": "never",
                                       "axisLabel": eje}, "min": 0}, "overrides": overrides}
     return panel(id_, "trend", titulo, clave, pos, descripcion, lineas("semana"), campos)
@@ -167,7 +171,7 @@ def paneles():
                    "calibrada.", {"showHeader": True, "cellHeight": "sm"}, ranking_campos))
 
     p.append(fila(7, "Casos frente al canal endémico", 26))
-    p.append(panel_trend(8, "Casos y umbral Q3 por semana", "canal_serie", (0, 27, 14, 10),
+    p.append(panel_trend(8, "Casos y umbral Q3 por semana", "canal_serie", (0, 27, 12, 10),
                          "Suma de los departamentos elegidos. Con varios departamentos, la línea Q3 "
                          "es la suma de sus umbrales, no un canal nacional.",
                          {"Casos": "red", "Umbral Q3": "blue"}, "Casos"))
@@ -182,7 +186,7 @@ def paneles():
         color_texto("Zona", {"Brote": "red", "Sobre el canal, menos de 5 casos": "orange",
                              "Dentro del canal": "transparent"}),
     ]}
-    p.append(panel(9, "table", "Razón casos / Q3 en la semana de corte", "canal_tabla", (14, 27, 10, 10),
+    p.append(panel(9, "table", "Razón casos / Q3 en la semana de corte", "canal_tabla", (12, 27, 12, 10),
                    "Mayor que 1: casos sobre el canal endémico. Vacío si el umbral es 0.",
                    {"showHeader": True, "cellHeight": "sm"}, canal_campos))
 
@@ -195,7 +199,7 @@ def paneles():
     p.append(panel(11, "stat", "Desempeño en semanas cerradas", "desempeno", (0, 38, 24, 5),
                    "Semanas-departamento fuera del entrenamiento con desenlace observado. "
                    "Recall = VP / (VP + FN); precisión = VP / (VP + FP). Vacío en años que el "
-                   "modelo usó para entrenar.", opciones_stat(), desempeno_campos))
+                   "modelo usó para entrenar.", opciones_stat(orientacion="vertical"), desempeno_campos))
     mes_campos = {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "decimals": 0},
                   "overrides": [{"matcher": {"id": "byName", "options": n},
                                  "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": c}}]}

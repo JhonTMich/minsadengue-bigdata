@@ -401,6 +401,30 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "semana"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Semana epidemiológica"
+              },
+              {
+                "id": "displayName",
+                "value": "Semana"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "min",
+                "value": 1
+              }
+            ]
           }
         ]
       }
@@ -599,7 +623,7 @@
       "gridPos": {
         "x": 0,
         "y": 27,
-        "w": 14,
+        "w": 12,
         "h": 10
       },
       "targets": [
@@ -672,6 +696,30 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "semana"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "Semana epidemiológica"
+              },
+              {
+                "id": "displayName",
+                "value": "Semana"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "min",
+                "value": 1
+              }
+            ]
           }
         ]
       }
@@ -686,9 +734,9 @@
         "uid": "${DS_ATHENA}"
       },
       "gridPos": {
-        "x": 14,
+        "x": 12,
         "y": 27,
-        "w": 10,
+        "w": 12,
         "h": 10
       },
       "targets": [
@@ -859,7 +907,7 @@
         "graphMode": "none",
         "textMode": "value_and_name",
         "justifyMode": "center",
-        "orientation": "horizontal"
+        "orientation": "vertical"
       },
       "fieldConfig": {
         "defaults": {
