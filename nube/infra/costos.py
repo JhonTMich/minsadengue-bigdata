@@ -89,3 +89,32 @@ def estimar(deploy, horas, archivo=None):
         (deploy.salida / "estimacion.json").write_text(json.dumps(informe, indent=2), encoding="utf-8")
     print(json.dumps(informe, indent=2, ensure_ascii=False))
     return informe
+
+
+def costo_real(deploy, desde, hasta):
+    """Costo facturado por servicio y día según Cost Explorer (se actualiza con 24 a 48 h de retraso).
+    Incluye todo lo de la cuenta, no solo este proyecto."""
+    deploy.identidad()
+    respuesta = deploy.aws("ce", "get-cost-and-usage", "--time-period", f"Start={desde},End={hasta}",
+                           "--granularity", "DAILY", "--metrics", "UnblendedCost",
+                           "--group-by", "Type=DIMENSION,Key=SERVICE", region="us-east-1")
+    if deploy.dry_run:
+        return None
+    por_servicio, por_dia = {}, {}
+    for dia in respuesta["ResultsByTime"]:
+        fecha = dia["TimePeriod"]["Start"]
+        for grupo in dia["Groups"]:
+            monto = Decimal(grupo["Metrics"]["UnblendedCost"]["Amount"])
+            servicio = grupo["Keys"][0]
+            por_servicio[servicio] = por_servicio.get(servicio, Decimal(0)) + monto
+            por_dia[fecha] = por_dia.get(fecha, Decimal(0)) + monto
+    informe = {"fecha_utc": datetime.now(timezone.utc).isoformat(), "fuente": "AWS Cost Explorer",
+               "periodo": {"desde": desde, "hasta_exclusivo": hasta}, "moneda": "USD",
+               "por_servicio": {k: f"{v:.4f}" for k, v in sorted(por_servicio.items(), key=lambda x: -x[1])},
+               "por_dia": {k: f"{v:.4f}" for k, v in sorted(por_dia.items())},
+               "total": f"{sum(por_servicio.values(), Decimal(0)):.4f}",
+               "nota": "Incluye todos los servicios de la cuenta; impuestos y créditos según la factura."}
+    deploy.salida.mkdir(parents=True, exist_ok=True)
+    (deploy.salida / "costo_real.json").write_text(json.dumps(informe, indent=2), encoding="utf-8")
+    print(json.dumps(informe, indent=2, ensure_ascii=False))
+    return informe

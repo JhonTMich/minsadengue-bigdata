@@ -95,16 +95,16 @@ solo imprime las consultas previstas; no inventa un importe.
 
 ## 2. Preparar una carga local
 
-Ejecutar desde la raíz del repositorio. Si el compañero ya generó la demostración,
+Ejecutar desde la raíz del repositorio. Si el compañero ya generó las cargas,
 reutilizar sus carpetas; de lo contrario, con los originales disponibles:
 
 ```bash
-python nube/demo/dividir_cargas.py --base data/_nube --parte historico --fecha-carga 2026-11-17 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
+python nube/ingesta/dividir_cargas.py --base data/_nube --parte historico --fecha-carga 2026-11-17 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
 ```
 
 Se esperan archivos CSV en `data/_nube/raw/dengue/fecha_carga=2026-11-17/` y
-`data/_nube/raw/clima/fecha_carga=2026-11-17/`. La fecha identifica el lote de la
-demostración; no representa la fecha de publicación de la fuente.
+`data/_nube/raw/clima/fecha_carga=2026-11-17/`. La fecha identifica el lote de
+carga; no representa la fecha de publicación de la fuente.
 
 ## 3. Revisar y ejecutar
 
@@ -205,12 +205,12 @@ de Raw ya existe con otro hash o sin el metadato esperado, se rechaza su reempla
 Una carga incompleta debe terminar de subirse antes de enviar los pasos. La carga
 queda congelada una vez que se empieza a procesar; no agregar archivos a su fecha.
 
-## 5. Demostrar la llegada de 2024
+## 5. Cargar 2024 sobre el histórico
 
 Después de completar el histórico y confirmar su apagado:
 
 ```bash
-python nube/demo/dividir_cargas.py --base data/_nube --parte nueva --fecha-carga 2026-11-18 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
+python nube/ingesta/dividir_cargas.py --base data/_nube --parte nueva --fecha-carga 2026-11-18 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
 python nube/infra/desplegar.py subir --fecha-carga 2026-11-18
 python nube/infra/desplegar.py cluster --horas 1 --max-usd 2
 python nube/infra/desplegar.py lanzar --corrida carga
@@ -222,12 +222,29 @@ La nueva ejecución comparte el data lake y su manifiesto; procesa las cargas
 pendientes. Se crea un clúster nuevo si el anterior ya terminó. Conservar el mismo
 archivo de estado en todo el recorrido.
 
+## 6. Cargar un año nuevo publicado (2025)
+
+El MINSA publicó `datos_abiertos_vigilancia_dengue_2000_2025_0.csv`, con separador
+`,` y comillas (hasta 2024 usaba `;`) y la columna nueva `tipo_dx`. Bronze y
+`dividir_cargas.py` detectan el separador por la cabecera. El clima del año
+epidemiológico (29/12/2024 a 03/01/2026) se descarga de NASA POWER; los JSON
+originales quedan en la misma carga y se suben con ella.
+
+```bash
+python nube/ingesta/dividir_cargas.py --base data/_nube --parte nueva --anio-corte 2024 --fecha-carga 2026-11-28 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2025_0.csv
+python nube/ingesta/descargar_clima.py --base data/_nube --fecha-carga 2026-11-28 --anio 2025
+python nube/infra/desplegar.py todo --fecha-carga 2026-11-28 --corrida carga
+```
+
+Los años 2000–2024 del CSV nuevo son idénticos al anterior, por eso la carga solo
+lleva 2025.
+
 La implementación actual de dengue espera años completos dentro de cada carga
-afectada. Esta demostración agrega 2024 completo. No usar lotes de semanas sueltas
+afectada: 2024 y 2025 entraron como años completos. No usar lotes de semanas sueltas
 del mismo año ni presentar este alcance como soporte de cualquier corrección
 histórica. La generalización del contrato incremental queda fuera del punto 2.
 
-## Catálogo de Gold en Athena
+## 7. Catálogo de Gold en Athena
 
 Con Gold ya escrito en S3, sin clúster encendido:
 
@@ -245,7 +262,30 @@ Ejecuta `nube/sql/01_tablas.sql` (base de datos de Glue `GLUE_DATABASE`, por def
 `output/aws/athena/catalogo.json`. Se puede repetir: las tablas usan `IF NOT EXISTS` y
 las vistas `CREATE OR REPLACE`.
 
-## 6. Evidencias del entregable
+## 8. Benchmark y costo real
+
+```bash
+python nube/infra/desplegar.py benchmark --dry-run
+python nube/infra/desplegar.py benchmark
+python nube/infra/desplegar.py costos --desde 2026-11-26
+```
+
+`benchmark` corre la corrida `completa` del histórico (`--fecha-carga`, por defecto
+`2026-11-17`) con 2 y 4 nodos totales (`--nodos 2 4`). Cada configuración usa su propia
+base vacía, `s3://<bucket>/datalake/benchmark/<id>/n<nodos>/`, así que procesa todo
+desde Raw sin tocar el data lake principal ni su manifiesto. Las configuraciones corren
+una después de otra y la siguiente espera a que el clúster anterior esté `TERMINATED`:
+4 nodos m5.xlarge usan las 16 vCPU de la cuota. Deja `output/aws/benchmark/<id>/resultados.json`
+y `resultados.md` con arranque, segundos por paso, vida del clúster y costo estimado.
+Una sola repetición por configuración: con este volumen las diferencias pequeñas pueden
+ser ruido.
+
+`costos` consulta Cost Explorer (USD 0.01 por consulta) y deja
+`output/aws/costo_real.json` por servicio y por día. Cost Explorer se activa una vez en
+la consola de Billing y se actualiza con 24 a 48 horas de retraso. Incluye todo lo que
+haya en la cuenta, no solo este proyecto.
+
+## 9. Evidencias del entregable
 
 - `output/aws/ejecuciones/<cluster-id>/ejecucion.json`: configuración observada,
   estados y tiempos reportados por EMR, conservados por clúster.

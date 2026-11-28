@@ -3,7 +3,7 @@
 Proyecto académico de Big Data y Analítica de Datos, Ingeniería de Computación y Sistemas, Universidad Privada Antenor Orrego, periodo 2026-20. Grupo 13. 
 Docente: Ing. Armando Javier Caballero Alvarado.
 
-**Resultado actual:** el pipeline funciona y la logística obtiene AUC-ROC 0.922 con casos y clima, pero el clima no mejora al modelo de casos solos (0.928). Al evaluar únicamente semanas sin brote vigente, el AUC baja a 0.689 con clima frente a 0.710 con casos solos. El objetivo predictivo de anticipación todavía requiere mejoras; no se presenta el AUC global como prueba suficiente de alerta temprana.
+**Resultado actual:** el pipeline incremental está desplegado en AWS (S3, EMR, Glue Data Catalog y Athena) y Power BI lee Gold desde Athena. Recibió el histórico 2000–2023 y luego 2024 y 2025 como cargas nuevas; 2025 es la publicación real del MINSA, en un formato distinto, y llegó hasta las alertas sin reentrenar. En semanas sin brote vigente, el modelo de alerta obtiene AUC 0.689 en 2024 y 0.735 en 2025, año que nunca vio, pero con el umbral 0.85 genera muchas falsas alarmas en un año de pocos casos (precisión 0.145 en 2025). El clima no mejora de forma consistente al modelo. No se presenta el AUC global como prueba suficiente de alerta temprana.
 
 ## Equipo y alcance
 
@@ -12,7 +12,7 @@ Docente: Ing. Armando Javier Caballero Alvarado.
 | Arenas Arriaga, Johan Michael | Coordinación, análisis y modelado |
 | Campos Acevedo, Gianfranco | Ingeniería de datos, calidad y documentación |
 
-Ruta de despliegue: **Ruta B (nube, AWS)**. El parcial se presentó como Ruta A (on-premise local con Docker y Spark); el cambio de ruta está en curso y debe quedar aprobado por el docente y registrado en la bitácora del informe. Mientras tanto, todos los resultados de este README provienen de la ejecución local. Se procesa el registro nacional 2000–2024 y se modelan 19 departamentos con al menos 1 000 registros en el periodo, que concentran aproximadamente el 99.93 % de casos. El informe declara un acuerdo de alcance con el docente en Semana 2; su respaldo documental sigue pendiente de incorporar. Los roles dobles y la cantidad de commits no sustituyen evidencia de planificación, contribuciones y decisiones.
+Ruta de despliegue: **Ruta B (nube, AWS)**. El parcial se presentó como Ruta A (on-premise local con Docker y Spark); el docente pidió el cambio a la nube y queda registrado en la bitácora del informe. Los resultados de modelado anteriores a la sección de despliegue provienen de la ejecución local; los del despliegue, de EMR, y coinciden con la réplica local. Se procesa el registro nacional 2000–2025 y se modelan 19 departamentos con al menos 1 000 registros en el periodo, que concentran aproximadamente el 99.93 % de casos. El informe declara un acuerdo de alcance con el docente en Semana 2; su respaldo documental sigue pendiente de incorporar. Los roles dobles y la cantidad de commits no sustituyen evidencia de planificación, contribuciones y decisiones.
 
 Es un prototipo académico, no un servicio oficial del MINSA ni una herramienta validada para decisiones sanitarias.
 
@@ -27,7 +27,8 @@ La meta inicial fue AUC-ROC > 0.80. Se alcanza en prueba completa, pero no en se
 | Fuente | Periodo | Datos originales |
 |---|---|---|
 | Vigilancia epidemiológica de dengue, CDC Perú / MINSA | 2000–2024 | 1 029 421 registros, 14 columnas, CSV separado por `;`, aproximadamente 103.5 MB |
-| NASA POWER, API diaria | 2000–2024 | 19 puntos, 9 132 días por punto; temperatura T2M, humedad RH2M y precipitación PRECTOTCORR |
+| Vigilancia epidemiológica de dengue, publicación con 2025 | 2000–2025 | 1 065 274 registros, 15 columnas (nueva `tipo_dx`: confirmado o probable), CSV separado por `,` con comillas; 2000–2024 idéntico a la publicación anterior; 2025 aporta 35 853 registros |
+| NASA POWER, API diaria | 2000–2025 | 19 puntos; 9 132 días por punto hasta 2024, y el año epidemiológico 2025 (29/12/2024 a 03/01/2026) descargado aparte; temperatura T2M, humedad RH2M y precipitación PRECTOTCORR |
 
 Dengue: [Plataforma Nacional de Datos Abiertos](https://www.datosabiertos.gob.pe/dataset/vigilancia-epidemiol%C3%B3gica-de-dengue). Clima: `https://power.larc.nasa.gov/api/temporal/daily/point`.
 
@@ -59,17 +60,16 @@ flowchart LR
     Q --> T[Power BI]
 ```
 
-| Pieza | Implementado hoy (local) | Ruta B objetivo (AWS) |
+| Pieza | Desarrollo (local) | Despliegue (AWS) |
 |---|---|---|
-| Almacenamiento | Disco local montado en Docker | Amazon S3, privado, cifrado y versionado |
-| Carga | Completa en cada corrida | Incremental: manifiesto de cargas y reescritura solo de los años afectados |
-| Procesamiento | Spark 3.5 en modo `local[2]` | Spark en un clúster Amazon EMR |
-| Modelo | Spark MLlib, entrenamiento y evaluación | Entrenamiento y puntuación separados, modelos versionados en S3 |
-| Tablas analíticas | Panel Gold | Panel, alertas y dimensiones en Gold, particionados por año |
+| Almacenamiento | Disco local montado en Docker (`data/_nube`) | Amazon S3, privado, cifrado (SSE-S3) y versionado |
+| Carga | Incremental, mismo código | Incremental: manifiesto de cargas y reescritura solo de los años afectados |
+| Procesamiento | Spark 3.5 en modo `local[2]` | Spark 3.5 en Amazon EMR 7.1 (YARN), clúster temporal que se apaga al terminar |
+| Modelo | Spark MLlib | Entrenamiento (`completa`) y puntuación (`carga`) separados, modelos versionados en S3 |
+| Tablas analíticas | Panel, alertas y dimensiones en Gold | Las mismas, particionadas por año |
 | Catálogo | — | AWS Glue Data Catalog |
-| Consulta | — | Amazon Athena, vistas de indicadores |
-| Tablero | — | Power BI Desktop conectado a Athena |
-| Desarrollo | JupyterLab en Docker | Se mantiene en local |
+| Consulta | — | Amazon Athena: 5 tablas y 5 vistas de indicadores |
+| Tablero | — | Power BI Desktop conectado a Athena por ODBC, con usuario de solo lectura |
 
 | Capa | Ruta bajo `data/` | Contrato |
 |---|---|---|
@@ -80,7 +80,7 @@ flowchart LR
 
 Gold contiene exactamente `cod_dep`, `departamento`, `ano`, `semana`, `casos`, `temp_media`, `hum_media`, `precip_total`. Su clave es departamento/año/semana. En la ejecución validada hay **24 776 filas**. El notebook `modeloBase` depende de este esquema, no de registros individuales.
 
-Hoy el almacenamiento es disco local montado en Docker y Spark se ejecuta en modo local: todavía no hay S3, EMR, catálogo gestionado ni clúster multinodo. La reconstrucción desde Raw permite recuperar datos, pero no acredita alta disponibilidad. Migrar a S3 y EMR requiere adaptar rutas, sesión de Spark, credenciales y accesos; no basta con afirmar la sustitución sin validarla. Parquet y el esquema Gold reducen el acoplamiento entre componentes.
+El mismo código corre en local y en EMR; solo cambia `--base` (`data/_nube` o `s3://<bucket>/datalake`). Las dos ejecuciones se compararon capa por capa y dieron los mismos conteos, casos y métricas. La reconstrucción desde Raw y el versionado del bucket permiten recuperar datos, pero no acreditan alta disponibilidad. Parquet y el esquema Gold reducen el acoplamiento entre componentes.
 
 ### Calidad y privacidad
 
@@ -88,7 +88,7 @@ Se normalizan textos y ubigeos, tipan años y semanas, validan diagnóstico, sex
 
 En clima, `-999` y valores fuera de rangos físicos se convierten en nulos; se agregan semanas con siete días. Ambos conjuntos usan semanas de domingo a sábado, con semana 1 que contiene el 4 de enero. Gold verifica número de filas, conservación de casos y ausencia de clima nulo en los controles implementados.
 
-Los datos individuales permanecen fuera de Git; Silver descarta localidad, localcod y diresa, pero conserva otros atributos individuales. Gold solo contiene agregados. No se afirma anonimización absoluta ni se ha realizado una auditoría formal de reidentificación. El informe cita la Ley N.º 29733; la conformidad legal no queda demostrada por descartar columnas. No hay controles productivos de cifrado/autorización acreditados por este repositorio.
+Los datos individuales permanecen fuera de Git; Silver descarta localidad, localcod y diresa, pero conserva otros atributos individuales. Gold solo contiene agregados. No se afirma anonimización absoluta ni se ha realizado una auditoría formal de reidentificación. El informe cita la Ley N.º 29733; la conformidad legal no queda demostrada por descartar columnas. En AWS el bucket es privado, con bloqueo de acceso público, cifrado SSE-S3 y versionado; EMR usa roles con permisos acotados al bucket y Power BI un usuario IAM de solo lectura. Las credenciales y el ID de la cuenta quedan fuera del repositorio. No es una auditoría de seguridad formal.
 
 ## Instalación y reproducción
 
@@ -103,7 +103,7 @@ docker compose logs pyspark-notebook
 
 Jupyter: `http://localhost:8888`. Spark UI: `http://localhost:4040` mientras exista una sesión activa. La imagen se fija por digest `jupyter/pyspark-notebook@sha256:58377aaa152b741e244f201679f96d909a024ea337088cc276b0ee32ab3f076f`; las mediciones registradas usan Spark 3.5.0 y Python 3.11.6. El supervisor de escalabilidad resuelve la misma imagen declarada en Compose.
 
-1. Guardar el CSV como `data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv`.
+1. Guardar el CSV como `data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv`. La publicación con 2025 se guarda como `datos_abiertos_vigilancia_dengue_2000_2025_0.csv` y solo se usa en la carga de 2025.
 2. Ejecutar `notebooks/cargaDatos.ipynb` completo. NASA se descarga y se reutilizan archivos existentes.
 3. Ejecutar `notebooks/modeloBase.ipynb` completo después de obtener Gold.
 
@@ -113,16 +113,16 @@ El modelo requiere Gold. Para pruebas rápidas sin el CSV completo hay una muest
 
 Los pasos de `nube/pipeline/` construyen Bronze, Silver y Gold de forma incremental: cada carga va en `raw/<fuente>/fecha_carga=AAAA-MM-DD/`, un manifiesto en `control/` registra lo procesado y solo se reescriben los años afectados (Silver y Gold particionados por año). El mismo código corre en EMR cambiando `--base` por `s3://<bucket>/datalake`.
 
-Para la demostración, `nube/demo/dividir_cargas.py` separa las fuentes en una carga histórica (hasta 2023) y una carga nueva (2024). En local se usa `data/_nube`, ignorada por Git, sin tocar las capas canónicas.
+`nube/ingesta/dividir_cargas.py` separa una publicación en carga histórica y carga nueva por año, y detecta el separador de cada formato del MINSA. `nube/ingesta/descargar_clima.py` descarga de NASA POWER el clima de un año epidemiológico y lo deja como carga, con las respuestas JSON originales. En local se usa `data/_nube`, ignorada por Git, sin tocar las capas canónicas. Cargas registradas: histórico 2000–2023 (`2026-11-17`), 2024 (`2026-11-18`) y 2025 (`2026-11-28`).
 
 ```bash
-docker compose exec -T -w /home/jovyan/work pyspark-notebook python nube/demo/dividir_cargas.py --base data/_nube --parte historico --fecha-carga 2026-11-17 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
+docker compose exec -T -w /home/jovyan/work pyspark-notebook python nube/ingesta/dividir_cargas.py --base data/_nube --parte historico --fecha-carga 2026-11-17 --dengue data/raw/datos_abiertos_vigilancia_dengue_2000_2024.csv --clima data/raw/clima_nasa/clima_departamentos.csv
 docker compose exec -T -e PYTHONPATH=/home/jovyan/work/nube -w /home/jovyan/work pyspark-notebook spark-submit --master "local[2]" --driver-memory 3g nube/pipeline/paso_01_bronze.py --base /home/jovyan/work/data/_nube
 docker compose exec -T -e PYTHONPATH=/home/jovyan/work/nube -w /home/jovyan/work pyspark-notebook spark-submit --master "local[2]" --driver-memory 3g nube/pipeline/paso_02_silver.py --base /home/jovyan/work/data/_nube
 docker compose exec -T -e PYTHONPATH=/home/jovyan/work/nube -w /home/jovyan/work pyspark-notebook spark-submit --master "local[2]" --driver-memory 3g nube/pipeline/paso_03_gold.py --base /home/jovyan/work/data/_nube
 ```
 
-La carga nueva se agrega repitiendo el primer comando con `--parte nueva --fecha-carga 2026-11-18` y luego los tres pasos. En Git Bash, anteponer `MSYS_NO_PATHCONV=1` para que no convierta las rutas del contenedor.
+La carga de 2024 se agrega repitiendo el primer comando con `--parte nueva --fecha-carga 2026-11-18` y luego los pasos; la de 2025 está en la [guía de despliegue](nube/infra/README.md), sección 6. En Git Bash, anteponer `MSYS_NO_PATHCONV=1` para que no convierta las rutas del contenedor.
 
 **Muestra y pruebas.** `data/muestra/raw/` tiene la misma estructura con tres departamentos (Huánuco y Pasco, más Puno, que queda bajo el mínimo de 1 000 registros) y las dos fechas de carga, en 2 MB. Dengue conserva los casos por semana, pero lugar, edad y sexo son ficticios; se regenera con `python scripts/crear_muestra.py`. Los pasos aceptan `--base /home/jovyan/work/data/muestra` igual que con `data/_nube`; las capas generadas no se versionan. Las dependencias fuera del contenedor están en `requirements.txt`.
 
@@ -143,15 +143,37 @@ Validación local (18/11/2026), con Spark 3.5.0 en `local[2]`:
 | Republicación del archivo completo 2000–2024 | Sin diferencias detectadas: Silver y Gold no se reescribieron; solo se registraron sus rechazados |
 | Comparación con el Gold canónico | 24 776 filas, 1 028 639 casos y 0 diferencias en casos y clima |
 
-### Despliegue en AWS (Ruta B, en preparación)
+### Despliegue en AWS (Ruta B)
 
-Todavía no hay ejecución en la nube. Se utilizará una cuenta AWS propia, pues no se dispone de Learner Lab universitario. Se requieren AWS CLI con credenciales fuera del repositorio, un bucket S3 privado y versionado, roles y red para EMR, y Power BI Desktop con el driver ODBC de Athena. El código del despliegue está en la carpeta `nube/`. El desarrollo permanece local y el clúster se crea solo durante las ejecuciones para reducir el gasto.
+Se usa una cuenta AWS propia del grupo, pues no se dispone de Learner Lab universitario. El [ejecutor y guía](nube/infra/README.md) prepara roles y una VPC pública sin NAT Gateway, configura S3, sube datos y código, crea un clúster EMR de 2 nodos `m5.xlarge`, ejecuta los pasos en YARN, descarga las evidencias, solicita el apagado y registra Gold en Glue y Athena (`desplegar.py todo`). Antes de crear el clúster estima el costo con la API de precios de AWS y lo compara con un tope (`--max-usd`); también tiene `--dry-run` y pruebas sin credenciales.
 
-El punto 2 dispone de un [ejecutor y guía para cuenta propia](nube/infra/README.md): prepara roles y una VPC pública sin NAT Gateway, configura S3, sube datos/código y ejecuta Bronze → Silver → Gold en EMR/YARN con supervisión y solicitud de apagado. Incluye estimación de costos para 2 y 4 nodos usando AWS Pricing, revisión del costo parcial antes de crear el clúster, `--dry-run` y pruebas locales. La estimación no es un tope de facturación. Su ejecución real y las evidencias cloud siguen pendientes de configurar la cuenta; no se declaran como resultados medidos. Se conserva el alcance validado por años completos: histórico 2000–2023 y carga nueva de 2024.
+| Ejecución en EMR | Resultado |
+|---|---|
+| `completa`, histórico 2000–2023 | Pasos 1 a 5, modelo entrenado y versionado en S3; mismos conteos y métricas que en local |
+| `carga`, 2024 | Pasos 1, 2, 3 y 5 sin reentrenar; solo se reescribió 2024 y se completaron las etiquetas de 2023 |
+| `carga`, 2025 (publicación real del MINSA) | 35 853 registros, 0 rechazados, 1 007 filas Gold, 185 alertas; se completaron las etiquetas de 2024; clúster de 9.5 minutos |
+| Athena tras 2025 | `panel_dengue_clima` 25 783 filas, `alertas` 20 824, `dim_semana` 1 357 |
+
+**Benchmark con 2 y 4 nodos** (histórico completo desde Raw, en bases separadas, una repetición): los pasos tardaron 373 s con 2 nodos y 335 s con 4 (−10 %), pero el arranque fue más largo con 4 nodos (254 s frente a 224 s) y la vida del clúster quedó igual (unos 12 minutos), con el doble de costo (0.20 frente a 0.10 USD estimados). Con este volumen domina el costo fijo de Spark; se mantiene la configuración de 2 nodos. El entrenamiento es el único paso que escala algo (−19 %).
+
+**Costo real** según Cost Explorer, de toda la cuenta: 0.36 USD hasta el 27/11/2026 (EC2 0.28, EMR 0.04, S3 0.02, IPv4 pública y discos 0.02), antes del benchmark y la carga de 2025, que se estiman en 0.30 y 0.08 USD. Presupuesto del grupo: 15 USD.
 
 ### Umbral de alerta del modelo cloud
 
 El paso 4 usa costo simétrico 1:1 por defecto, seleccionado con train hasta 2020 y validación 2021–2023. Para `contexto_clima` el umbral resultó 0.85. En validación sin brote vigente, la tasa de alertas fue 21.44 %, el recall 37.98 % y hubo 113 falsas alarmas frente a 128 semanas positivas detectadas. La tasa global de alertas fue 68.11 %. Es un compromiso académico con pérdida de sensibilidad, no una validación de utilidad sanitaria. El criterio se fija antes de evaluar 2024; los modelos anteriores requieren regenerar el paso 4 para incorporar el cambio. Ver [comparación, reproducción y bitácora](docs/umbral_alerta_validacion.md).
+
+### Evaluación fuera de entrenamiento: 2024 y 2025
+
+El modelo `contexto_clima` se entrenó hasta 2023 y no se reentrenó al cargar 2024 ni 2025. 2025 no se usó para ninguna decisión del modelo ni del umbral; es la evaluación más limpia del proyecto. Las últimas 4 semanas de 2025 todavía no tienen etiqueta, porque requieren las primeras semanas de 2026.
+
+| Año | Subconjunto | Filas | Brotes | AUC | Recall | Precisión | VP / FP / FN |
+|---|---|---:|---:|---:|---:|---:|---|
+| 2024 | Todas las semanas | 988 | 533 | 0.913 | 0.861 | 0.833 | 459 / 92 / 74 |
+| 2024 | Sin brote vigente | 534 | 103 | 0.689 | 0.330 | 0.327 | 34 / 70 / 69 |
+| 2025 | Todas las semanas | 931 | 127 | 0.893 | 0.732 | 0.525 | 93 / 84 / 34 |
+| 2025 | Sin brote vigente | 834 | 44 | 0.735 | 0.273 | 0.145 | 12 / 71 / 32 |
+
+2025 tuvo unas ocho veces menos casos que 2024. El modelo ordena el riesgo algo mejor que en 2024, pero el umbral, elegido con años epidémicos, produce 71 falsas alarmas frente a 12 aciertos en semanas sin brote vigente. Antes de usarlo para decidir haría falta recalibrar el umbral o la probabilidad.
 
 ### Ejecuciones automáticas y evidencias
 
@@ -366,6 +388,6 @@ El pipeline integra los datos epidemiológicos y climáticos y se ejecutó hasta
 
 Las principales limitaciones son la representación climática mediante un punto por departamento, la subnotificación y los cambios en la vigilancia, la ausencia de modelado del retraso de notificación y la exclusión de departamentos con pocos registros. Además, la selección de departamentos considera el periodo completo y las ventanas de predicción pueden solaparse, de modo que las semanas evaluadas no representan episodios independientes.
 
-Las pruebas de escalabilidad utilizan registros replicados, con ventajas de compresión y una salida Gold de tamaño constante. Sus resultados describen la carga local evaluada; no demuestran escalabilidad multinodo ni identifican un punto de quiebre exacto. Tampoco se han cuantificado costos operativos o consumo energético.
+Las pruebas de escalabilidad utilizan registros replicados, con ventajas de compresión y una salida Gold de tamaño constante. Sus resultados describen la carga local evaluada; no demuestran escalabilidad multinodo ni identifican un punto de quiebre exacto. El benchmark en EMR con 2 y 4 nodos no mostró una ganancia de punta a punta con este volumen. El costo real se midió con Cost Explorer; el consumo energético no se cuantificó.
 
-El trabajo pendiente comprende validar la estabilidad temporal y regional, evaluar representaciones climáticas alternativas y seleccionar el umbral de alerta considerando falsas alarmas. Las nuevas decisiones deben ajustarse mediante validación temporal; como el periodo 2021–2024 ya fue inspeccionado, la confirmación de generalización requiere una evaluación independiente. También quedan pendientes el despliegue en AWS para la Ruta B (S3, EMR, Glue Data Catalog y Athena), el reporte del costo real frente al estimado, una prueba de escalabilidad horizontal con distinto número de nodos y el desarrollo de la capa de consumo.
+El trabajo pendiente comprende validar la estabilidad temporal y regional, evaluar representaciones climáticas alternativas y seleccionar el umbral de alerta considerando falsas alarmas. Las nuevas decisiones deben ajustarse mediante validación temporal; como el periodo 2021–2024 ya fue inspeccionado, la confirmación de generalización requiere una evaluación independiente. 2025 cumple el papel de evaluación independiente y confirma una capacidad de ordenamiento moderada, con demasiadas falsas alarmas en años tranquilos. Quedan como trabajo futuro el clima a nivel distrital, la recalibración del umbral, el modelado del retraso de notificación y automatizar la descarga de las fuentes, que hoy se lanza a mano antes de cada carga.
