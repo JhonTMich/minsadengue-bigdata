@@ -49,7 +49,9 @@ carga de 2025 completó las etiquetas de las últimas semanas de 2024.
 
 | Campo | Valor |
 | --- | --- |
-| Authentication Provider | Access & secret key del usuario de solo lectura |
+| Authentication Provider | Grafana Assume Role |
+| Assume Role ARN | ARN del rol `MinsaDengueGrafanaAthena` |
+| External ID | El que muestra el stack de Grafana Cloud |
 | Default Region | `us-east-1` |
 | Data source | `AwsDataCatalog` |
 | Database | `minsadengue_gold` |
@@ -60,10 +62,18 @@ carga de 2025 completó las etiquetas de las últimas semanas de 2024.
 4. **Dashboards → New → Import**, subir `tablero_dengue.json` y elegir el
    origen Athena del paso 2.
 
-El usuario de Grafana tiene la misma política de solo lectura que Power BI
-(`MinsaDenguePowerBISoloLectura`): consulta Athena, lee Glue y Gold y escribe
-solo en `athena/resultados/`. Su clave queda guardada en Grafana Cloud, no en
-el repositorio ni en este JSON.
+Grafana no usa claves de acceso. Asume el rol IAM `MinsaDengueGrafanaAthena`,
+cuya relación de confianza solo admite la cuenta AWS de Grafana Cloud que
+indica el formulario y exige el External ID del stack (`sts:ExternalId`): otro
+stack de Grafana no puede asumirlo. El rol tiene la misma política de solo
+lectura que Power BI (`MinsaDenguePowerBISoloLectura`): consulta Athena, lee
+Glue y Gold y escribe solo en `athena/resultados/`. No hay credenciales en el
+repositorio ni en este JSON.
+
+Para crear el rol, desplegar en el formulario «How to create an IAM role for
+grafana to assume», usar la cuenta y el External ID que muestra y adjuntar la
+política anterior. Verificado el 28/11/2026: **Save & test** correcto e
+importación del tablero con las cifras de la tabla de conciliación.
 
 Cada panel lanza una consulta a Athena al abrir el tablero o cambiar un filtro.
 Gold pesa menos de 1 MB: Athena cobra el mínimo de 10 MB por consulta, del
